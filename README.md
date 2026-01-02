@@ -1,6 +1,6 @@
-# 💰 Shiny App Valuation Toolkit
-
 <div align="center">
+
+# 💰 Shiny App Valuation Toolkit
 
 **COCOMO II-Based Cost Estimation for R Shiny & Data Science Projects**
 
@@ -85,7 +85,32 @@ The **Shiny App Valuation Toolkit** provides sophisticated cost estimation tools
 
 ## 🚀 Quick Start
 
-### For R Users
+### 🌟 NEW: Interactive Web App (Recommended!)
+
+**The easiest way to use the toolkit - no coding required!**
+
+```r
+# Launch the interactive Shiny app
+shiny::runApp("cost-estimator-app")
+
+# Or use the quick launcher
+Rscript cost-estimator-app/run_app.R
+```
+
+**Features:**
+- 📁 **Local Folder Browser** - Point and click analysis
+- 📦 **ZIP Upload** - Drag and drop repository archives
+- ✏️ **Manual Entry** - Quick estimates without code
+- 📊 **Interactive Charts** - Language breakdown, cost visualizations
+- ⚖️ **Scenario Comparison** - Compare multiple configurations
+- 📄 **Export Reports** - PDF, CSV, JSON downloads
+- 🔗 **Shareable URLs** - Send pre-filled configurations to colleagues
+
+**[See full app documentation →](cost-estimator-app/README.md)**
+
+---
+
+### For R Users (Command Line)
 
 ```r
 # 1. Load the analyzer
@@ -116,7 +141,7 @@ Estimated Schedule Effort (realistic): 15.2 months (1.3 years)
 Estimated People Required (realistic): 3 people
 ```
 
-### For Python Users
+### For Python Users (Command Line)
 
 ```bash
 # 1. Analyze your repository
@@ -172,12 +197,81 @@ print_shiny_cost_report(result)
 **Best For**:
 - Full repository analysis
 - Portfolio assessments
+## 🛠️ Tools Available
+
+### 🌟 1. Interactive Web App (NEW - Recommended!)
+**Location**: [cost-estimator-app/](cost-estimator-app/)
+
+**Purpose**: User-friendly web interface with three analysis modes and interactive visualizations
+
+**Three Input Modes**:
+1. **📁 Local Folder** - Browse and analyze directories on your computer
+2. **📦 ZIP Upload** - Drag-and-drop repository archives (works on deployed servers)
+3. **✏️ Manual Entry** - Quick estimates by entering code lines per language
+
+**Interactive Features**:
+- 📊 **Real-time visualizations** - Pie charts, bar charts, sensitivity analysis
+- 💰 **Cost breakdowns** - See how parameters affect total cost
+- ⚖️ **Scenario comparison** - Compare up to 3 configurations side-by-side
+- 📈 **Sensitivity analysis** - Interactive sliders to explore "what-if" scenarios
+- 📄 **Export options** - PDF reports, CSV data, JSON exports
+- 🔗 **Shareable URLs** - Generate links with pre-filled parameters
+
+**Quick Start**:
+```r
+# Launch locally
+shiny::runApp("cost-estimator-app")
+
+# Or use the launcher script
+Rscript cost-estimator-app/run_app.R
+
+# Check dependencies
+source("cost-estimator-app/check_dependencies.R")
+```
+
+**Deployment**:
+- Deploy to shinyapps.io (free hosting)
+- RStudio Connect (enterprise)
+- Shiny Server (open source)
+- Docker container
+
+**Full Documentation**: [cost-estimator-app/README.md](cost-estimator-app/README.md)
+
+**Best For**:
+- Non-technical stakeholders
+- Interactive exploration
+- Client presentations
+- Team collaboration
+- Quick what-if analysis
+
+---
+
+### 2. Repository Code Analyzer (R)
+**File**: [R/repo_code_analyzer.R](R/repo_code_analyzer.R)
+
+**Purpose**: Comprehensive repository analysis with integrated cost estimation
+
+**Key Functions**:
+- `analyze_repo_code(path, avg_wage, complexity, team_experience, reuse_factor, tool_support, max_team_size, max_schedule_months)`
+
+**Features**:
+- Recursive directory scanning with smart exclusions (.git, node_modules, etc.)
+- Language detection for 20+ file types
+- Comment and blank line filtering
+- Complexity analysis (functions, loops, conditionals)
+- Automatic integration with COCOMO II estimator
+- Realistic constraint modeling (team size, schedule limits)
+- Premium calculations for compressed timelines
+
+**Best For**:
+- Full repository analysis
+- Portfolio assessments
 - Pre-development scoping
 - Post-mortem analysis
 
 ---
 
-### 2. Shiny Cost Estimator (R)
+### 3. Shiny Cost Estimator (R)
 **File**: [R/shiny_cost_estimator.R](R/shiny_cost_estimator.R)
 
 **Purpose**: Standalone COCOMO II cost model for quick estimates
@@ -201,7 +295,7 @@ print_shiny_cost_report(result)
 
 ---
 
-### 3. Repository Code Analyzer (Python)
+### 4. Repository Code Analyzer (Python)
 **File**: [Python/repo_code_analyzer.py](Python/repo_code_analyzer.py)
 
 **Purpose**: Python equivalent with CLI interface and export options
