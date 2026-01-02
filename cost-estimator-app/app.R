@@ -1,6 +1,6 @@
 # Shiny App Cost Estimator - Interactive Dashboard
 # Three modes: Local Folder, ZIP Upload, Manual Entry
-# Author: Your Name
+# Author: Alexis Roldan
 # Date: January 2, 2026
 
 library(shiny)
@@ -10,24 +10,25 @@ library(DT)
 library(shinyWidgets)
 
 # Source the estimation functions
-source("../R/shiny_cost_estimator.R")
-source("../R/repo_code_analyzer.R")
+source("modules/shiny_cost_estimator.R")
+source("modules/repo_code_analyzer.R")
 
 # UI Definition
 ui <- page_navbar(
   title = "💰 Shiny Cost Estimator",
+  id = "nav",
   theme = bs_theme(
     version = 5,
-    bootswatch = "flatly",
-    primary = "#2C3E50",
-    secondary = "#18BC9C",
-    success = "#18BC9C",
+    bootswatch = "darkly",
+    primary = "#375a7f",
+    secondary = "#00bc8c",
+    success = "#00bc8c",
     base_font = font_google("Roboto")
   ),
   
   # Welcome/Info Panel
   nav_panel(
-    title = "🏠 Home",
+    title = "Home",
     icon = icon("home"),
     layout_column_wrap(
       width = 1,
@@ -78,7 +79,7 @@ ui <- page_navbar(
   
   # Tab 1: Local Folder Analysis
   nav_panel(
-    title = "📁 Local Folder",
+    title = "Local Folder",
     icon = icon("folder-open"),
     layout_sidebar(
       sidebar = sidebar(
@@ -144,7 +145,7 @@ ui <- page_navbar(
   
   # Tab 2: ZIP Upload
   nav_panel(
-    title = "📦 ZIP Upload",
+    title = "ZIP Upload",
     icon = icon("upload"),
     layout_sidebar(
       sidebar = sidebar(
@@ -211,7 +212,7 @@ ui <- page_navbar(
   
   # Tab 3: Manual Entry
   nav_panel(
-    title = "✏️ Manual Entry",
+    title = "Manual Entry",
     icon = icon("edit"),
     layout_sidebar(
       sidebar = sidebar(
@@ -271,7 +272,7 @@ ui <- page_navbar(
   
   # Tab 4: Compare Scenarios
   nav_panel(
-    title = "⚖️ Compare",
+    title = "Compare",
     icon = icon("balance-scale"),
     card(
       card_header("Compare Multiple Scenarios"),
@@ -329,7 +330,7 @@ ui <- page_navbar(
   
   # Tab 5: Export & Share
   nav_panel(
-    title = "📄 Export",
+    title = "Export",
     icon = icon("download"),
     card(
       card_header("Export & Share Your Analysis"),
@@ -417,15 +418,15 @@ server <- function(input, output, session) {
   # ============================================================================
   
   observeEvent(input$start_local, {
-    updateNavs(session, "nav", selected = "📁 Local Folder")
+    nav_select("nav", selected = "📁 Local Folder")
   })
   
   observeEvent(input$start_zip, {
-    updateNavs(session, "nav", selected = "📦 ZIP Upload")
+    nav_select("nav", selected = "📦 ZIP Upload")
   })
   
   observeEvent(input$start_manual, {
-    updateNavs(session, "nav", selected = "✏️ Manual Entry")
+    nav_select("nav", selected = "✏️ Manual Entry")
   })
   
   # ============================================================================
@@ -433,18 +434,68 @@ server <- function(input, output, session) {
   # ============================================================================
   
   observeEvent(input$browse_folder, {
-    # For local use, try to open file browser
-    # Note: This works best when running locally
+    # OS-agnostic folder browser
+    # Works on Windows, macOS, and Linux with multiple fallback options
     path <- tryCatch({
-      choose.dir()
+      os_type <- Sys.info()[["sysname"]]
+      
+      # Try RStudio API first (works on all platforms when in RStudio)
+      if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
+        selected <- rstudioapi::selectDirectory(caption = "Select Repository Folder")
+        if (!is.null(selected) && nzchar(selected)) {
+          return(selected)
+        }
+      }
+      
+      # Platform-specific native dialogs
+      if (os_type == "Windows") {
+        # Windows: use native choose.dir if available
+        if (.Platform$OS.type == "windows") {
+          selected <- utils::choose.dir(caption = "Select Repository Folder")
+          if (!is.null(selected) && nzchar(selected)) {
+            return(selected)
+          }
+        }
+      } else if (os_type == "Darwin") {
+        # macOS: use AppleScript for native dialog
+        cmd <- "osascript -e 'POSIX path of (choose folder with prompt \"Select Repository Folder\")'"
+        res <- suppressWarnings(system(cmd, intern = TRUE, ignore.stderr = TRUE))
+        if (length(res) > 0 && nzchar(res[1])) {
+          # Remove trailing newline and whitespace
+          selected <- trimws(res[1])
+          # Remove trailing slash if present
+          selected <- sub("/$", "", selected)
+          if (nzchar(selected)) {
+            return(selected)
+          }
+        }
+      }
+      
+      # Universal fallback: tcltk (works on all platforms if installed)
+      if (requireNamespace("tcltk", quietly = TRUE)) {
+        selected <- tcltk::tk_choose.dir(caption = "Select Repository Folder")
+        if (!is.null(selected) && nzchar(selected)) {
+          return(selected)
+        }
+      }
+      
+      # If all methods failed
+      stop("No folder selection method succeeded")
+      
     }, error = function(e) {
-      showNotification("Folder browser not available. Please enter path manually.", 
-                      type = "warning", duration = 5)
+      showNotification(
+        paste0("Folder browser not available on your system. ",
+               "Please enter the path manually in the text field above."), 
+        type = "warning", 
+        duration = 8
+      )
       return(NULL)
     })
     
-    if (!is.null(path)) {
+    # Update the text input if we got a valid path
+    if (!is.null(path) && nzchar(path)) {
       updateTextInput(session, "local_path", value = path)
+      showNotification("Folder selected successfully!", type = "message", duration = 3)
     }
   })
   
@@ -1324,7 +1375,7 @@ server <- function(input, output, session) {
       if (!is.null(query$team)) updateSliderInput(session, "manual_team_exp", value = as.numeric(query$team))
       
       # Switch to manual tab
-      updateNavs(session, "nav", selected = "✏️ Manual Entry")
+      nav_select("nav", selected = "✏️ Manual Entry")
       
       showNotification("Pre-filled from shared URL!", type = "message", duration = 5)
     }
