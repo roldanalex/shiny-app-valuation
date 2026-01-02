@@ -389,7 +389,7 @@ Large (>50MB):
 
 **App Issues:**
 - GitHub Issues
-- Email: alexis.roldan@takeda.com
+- Email: alexis.m.roldan.ds@gmail.com
 
 ---
 

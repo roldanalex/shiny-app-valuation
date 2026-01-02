@@ -338,7 +338,7 @@ MIT License - See main repository LICENSE file
 ## 💬 Support
 
 - **Issues**: Open GitHub issue
-- **Email**: alexis.roldan@takeda.com
+- **Email**: alexis.m.roldan.ds@gmail.com
 - **Documentation**: See main README.md
 
 ---
