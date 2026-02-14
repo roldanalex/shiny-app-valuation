@@ -21,7 +21,9 @@ required_packages <- c(
 recommended_packages <- c(
   "rsconnect",  # For deployment
   "rmarkdown",  # For PDF reports
-  "knitr"       # For PDF reports
+  "knitr",      # For PDF reports
+  "ellmer",     # For AI Assistant chatbot
+  "shinychat"   # For AI Assistant chatbot UI
 )
 
 # Check function

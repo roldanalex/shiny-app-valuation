@@ -1,7 +1,6 @@
 # Shiny App Cost Estimator - Interactive Dashboard
-# Three modes: Local Folder, ZIP Upload, Manual Entry
+# Modular architecture with COCOMO II estimation engine
 # Author: Alexis Roldan
-# Date: January 2, 2026
 
 library(shiny)
 library(bslib)
@@ -9,13 +8,124 @@ library(plotly)
 library(DT)
 library(shinyWidgets)
 
-# Source the estimation functions
-source("modules/shiny_cost_estimator.R")
-source("modules/repo_code_analyzer.R")
+# Optional AI assistant packages
+ai_available <- tryCatch({
+  requireNamespace("ellmer", quietly = TRUE) &&
+    requireNamespace("shinychat", quietly = TRUE)
+}, error = function(e) FALSE)
+
+if (ai_available) library(shinychat)
+
+# Source estimation functions (prefer R/ originals, fall back to modules/)
+if (file.exists("../R/shiny_cost_estimator.R")) {
+  source("../R/shiny_cost_estimator.R")
+} else {
+  source("modules/shiny_cost_estimator.R")
+}
+if (file.exists("../R/repo_code_analyzer.R")) {
+  source("../R/repo_code_analyzer.R")
+} else {
+  source("modules/repo_code_analyzer.R")
+}
+
+# Source UI/server modules
+source("modules/analysis_module.R")
+source("modules/comparison_module.R")
+source("modules/export_module.R")
+
+# Helper: setting label with inline "?" help button
+setting_help_btn <- function(label, id) {
+  tags$div(
+    style = "display: flex; align-items: center; gap: 6px;",
+    tags$span(label, style = "font-weight: 600;"),
+    actionButton(
+      id,
+      label = "?",
+      class = "btn btn-outline-secondary btn-sm",
+      style = paste0(
+        "border-radius: 50%; width: 22px; height: 22px;",
+        " padding: 0; font-size: 12px; line-height: 20px;"
+      )
+    )
+  )
+}
+
+# Reusable sidebar settings block with help buttons
+project_settings_sidebar <- function(prefix) {
+  tagList(
+    hr(),
+    h5("Project Settings"),
+
+    setting_help_btn("Complexity:", paste0(prefix, "_help_complexity")),
+    selectInput(paste0(prefix, "_complexity"), label = NULL,
+               choices = c("Low" = "low", "Medium" = "medium",
+                           "High" = "high"),
+               selected = "medium"),
+
+    setting_help_btn("Team Experience:", paste0(prefix, "_help_team")),
+    sliderInput(paste0(prefix, "_team_exp"), label = NULL,
+               min = 1, max = 5, value = 4, step = 1),
+
+    setting_help_btn("Reuse Factor:", paste0(prefix, "_help_reuse")),
+    sliderInput(paste0(prefix, "_reuse"), label = NULL,
+               min = 0.7, max = 1.3, value = 1.0, step = 0.05),
+
+    setting_help_btn("Tool Support Quality:", paste0(prefix, "_help_tools")),
+    sliderInput(paste0(prefix, "_tools"), label = NULL,
+               min = 0.8, max = 1.2, value = 1.0, step = 0.05),
+
+    setting_help_btn("Average Annual Wage ($):", paste0(prefix, "_help_wage")),
+    numericInput(paste0(prefix, "_wage"), label = NULL,
+                value = 105000, min = 50000, max = 300000, step = 5000),
+
+    setting_help_btn("Max Team Size:", paste0(prefix, "_help_maxteam")),
+    sliderInput(paste0(prefix, "_max_team"), label = NULL,
+               min = 1, max = 10, value = 5, step = 1),
+
+    setting_help_btn("Max Schedule (months):", paste0(prefix, "_help_maxsched")),
+    sliderInput(paste0(prefix, "_max_schedule"), label = NULL,
+               min = 3, max = 36, value = 24, step = 3)
+  )
+}
+
+# Shared sidebar for advanced COCOMO drivers + maintenance
+advanced_cocomo_sidebar <- function(prefix) {
+  tagList(
+    hr(),
+    tags$details(
+      tags$summary(tags$b("Advanced COCOMO Drivers")),
+      setting_help_btn("Required Reliability:", paste0(prefix, "_help_rely")),
+      sliderInput(paste0(prefix, "_rely"), label = NULL,
+                 min = 0.82, max = 1.26, value = 1.0, step = 0.01),
+      setting_help_btn("Product Complexity:", paste0(prefix, "_help_cplx")),
+      sliderInput(paste0(prefix, "_cplx"), label = NULL,
+                 min = 0.73, max = 1.74, value = 1.0, step = 0.01),
+      setting_help_btn("Required Reusability:", paste0(prefix, "_help_ruse")),
+      sliderInput(paste0(prefix, "_ruse"), label = NULL,
+                 min = 0.95, max = 1.24, value = 1.0, step = 0.01),
+      setting_help_btn("Personnel Continuity:", paste0(prefix, "_help_pcon")),
+      sliderInput(paste0(prefix, "_pcon"), label = NULL,
+                 min = 0.81, max = 1.29, value = 1.0, step = 0.01),
+      setting_help_btn("Application Experience:", paste0(prefix, "_help_apex")),
+      sliderInput(paste0(prefix, "_apex"), label = NULL,
+                 min = 0.81, max = 1.22, value = 1.0, step = 0.01)
+    ),
+    hr(),
+    tags$details(
+      tags$summary(tags$b("Maintenance & TCO")),
+      setting_help_btn("Annual Maintenance Rate:", paste0(prefix, "_help_maint_rate")),
+      sliderInput(paste0(prefix, "_maint_rate"), label = NULL,
+                 min = 0, max = 0.40, value = 0.20, step = 0.05),
+      setting_help_btn("Maintenance Years:", paste0(prefix, "_help_maint_years")),
+      sliderInput(paste0(prefix, "_maint_years"), label = NULL,
+                 min = 0, max = 10, value = 0, step = 1)
+    )
+  )
+}
 
 # UI Definition
 ui <- page_navbar(
-  title = "💰 Shiny Cost Estimator",
+  title = "Shiny Cost Estimator",
   id = "nav",
   theme = bs_theme(
     version = 5,
@@ -25,8 +135,14 @@ ui <- page_navbar(
     success = "#00bc8c",
     base_font = font_google("Roboto")
   ),
-  
-  # Welcome/Info Panel
+  footer = tags$footer(
+    class = "bg-dark text-light py-2 px-3 mt-auto",
+    style = "display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;",
+    tags$span("Shiny Cost Estimator v1.0.1"),
+    tags$span("Created by Alexis Roldan - 2026")
+  ),
+
+  # Home tab
   nav_panel(
     title = "Home",
     icon = icon("home"),
@@ -37,47 +153,48 @@ ui <- page_navbar(
         card_body(
           tags$div(
             style = "font-size: 16px;",
-            h3("📊 Quantify Your Development Investment"),
-            p("This tool uses the industry-standard COCOMO II model to estimate the cost, schedule, 
+            h3("Quantify Your Development Investment"),
+            p("This tool uses the industry-standard COCOMO II model to estimate the cost, schedule,
               and team size required for your R Shiny applications and data science projects."),
-            
-            h4("🎯 Three Analysis Modes:"),
+
+            h4("Three Analysis Modes:"),
             tags$ul(
-              tags$li(tags$b("📁 Local Folder:"), " Analyze projects on your computer (best for local use)"),
-              tags$li(tags$b("📦 ZIP Upload:"), " Upload a repository ZIP file (works anywhere)"),
-              tags$li(tags$b("✏️ Manual Entry:"), " Quick estimates without code analysis")
+              tags$li(tags$b("Local Folder:"), " Analyze projects on your computer (best for local use)"),
+              tags$li(tags$b("ZIP Upload:"), " Upload a repository ZIP file (works anywhere)"),
+              tags$li(tags$b("Manual Entry:"), " Quick estimates without code analysis")
             ),
-            
-            h4("✨ Key Features:"),
+
+            h4("Key Features:"),
             tags$ul(
-              tags$li("Real-time cost and schedule estimation"),
-              tags$li("Language breakdown visualizations"),
+              tags$li("Real-time cost and schedule estimation with confidence intervals"),
+              tags$li("COCOMO II waterfall cost breakdown"),
+              tags$li("Maintenance cost and Total Cost of Ownership (TCO) projections"),
+              tags$li("Advanced COCOMO II cost drivers (reliability, complexity, reusability, etc.)"),
               tags$li("Scenario comparison (side-by-side)"),
-              tags$li("Sensitivity analysis with interactive sliders"),
-              tags$li("PDF report generation"),
+              tags$li("Sensitivity analysis with interactive charts"),
               tags$li("Shareable URLs with pre-filled parameters")
             ),
-            
+
             hr(),
-            h4("🚀 Getting Started:"),
-            p("Choose an analysis mode from the tabs above and follow the guided workflow."),
-            
-            actionButton("start_local", "Start Local Analysis", 
-                        icon = icon("folder-open"), 
+            h4("Getting Started:"),
+            p("Choose an analysis mode below or from the tabs above."),
+
+            actionButton("start_local", "Start Local Analysis",
+                        icon = icon("folder-open"),
                         class = "btn-primary btn-lg me-2"),
-            actionButton("start_zip", "Upload ZIP", 
-                        icon = icon("upload"), 
+            actionButton("start_zip", "Upload ZIP",
+                        icon = icon("upload"),
                         class = "btn-success btn-lg me-2"),
-            actionButton("start_manual", "Manual Entry", 
-                        icon = icon("edit"), 
+            actionButton("start_manual", "Manual Entry",
+                        icon = icon("edit"),
                         class = "btn-info btn-lg")
           )
         )
       )
     )
   ),
-  
-  # Tab 1: Local Folder Analysis
+
+  # Local Folder tab
   nav_panel(
     title = "Local Folder",
     icon = icon("folder-open"),
@@ -85,65 +202,26 @@ ui <- page_navbar(
       sidebar = sidebar(
         title = "Analysis Parameters",
         width = 300,
-        
-        textInput("local_path", "Repository Path:", 
+
+        textInput("local_path", "Repository Path:",
                  value = getwd(),
                  placeholder = "/path/to/your/repo"),
-        actionButton("browse_folder", "Browse Folder", icon = icon("search"), class = "btn-sm btn-secondary mb-3"),
-        
+        actionButton("browse_folder", "Browse Folder", icon = icon("search"),
+                    class = "btn-sm btn-secondary mb-3"),
+
+        project_settings_sidebar("local"),
+        advanced_cocomo_sidebar("local"),
+
         hr(),
-        h5("Project Settings"),
-        
-        selectInput("local_complexity", "Complexity:",
-                   choices = c("Low" = "low", "Medium" = "medium", "High" = "high"),
-                   selected = "medium"),
-        
-        sliderInput("local_team_exp", "Team Experience (1=Novice, 5=Expert):",
-                   min = 1, max = 5, value = 4, step = 1),
-        
-        sliderInput("local_reuse", "Reuse Factor:",
-                   min = 0.7, max = 1.3, value = 1.0, step = 0.05),
-        
-        sliderInput("local_tools", "Tool Support Quality:",
-                   min = 0.8, max = 1.2, value = 1.0, step = 0.05),
-        
-        numericInput("local_wage", "Average Annual Wage ($):",
-                    value = 105000, min = 50000, max = 300000, step = 5000),
-        
-        sliderInput("local_max_team", "Max Team Size:",
-                   min = 1, max = 10, value = 5, step = 1),
-        
-        sliderInput("local_max_schedule", "Max Schedule (months):",
-                   min = 3, max = 36, value = 24, step = 3),
-        
-        hr(),
-        actionButton("analyze_local", "Analyze Repository", 
-                    icon = icon("play"), 
+        actionButton("analyze_local", "Analyze Repository",
+                    icon = icon("play"),
                     class = "btn-primary btn-lg w-100")
       ),
-      
-      # Main content area
-      navset_card_tab(
-        nav_panel("📊 Results",
-                 uiOutput("local_results_summary"),
-                 hr(),
-                 plotlyOutput("local_lang_chart", height = "400px"),
-                 hr(),
-                 plotlyOutput("local_cost_breakdown", height = "300px")
-        ),
-        nav_panel("📋 Details",
-                 DTOutput("local_details_table"),
-                 hr(),
-                 verbatimTextOutput("local_estimate_text")
-        ),
-        nav_panel("📈 Sensitivity",
-                 uiOutput("local_sensitivity_ui")
-        )
-      )
+      analysisResultsUI("local_results", ai_available = ai_available)
     )
   ),
-  
-  # Tab 2: ZIP Upload
+
+  # ZIP Upload tab
   nav_panel(
     title = "ZIP Upload",
     icon = icon("upload"),
@@ -151,66 +229,27 @@ ui <- page_navbar(
       sidebar = sidebar(
         title = "Upload & Configure",
         width = 300,
-        
+
         fileInput("zip_file", "Upload Repository ZIP:",
                  accept = c(".zip"),
                  buttonLabel = "Browse...",
                  placeholder = "No file selected"),
-        
+
         tags$small(class = "text-muted", "Max file size: 50MB"),
-        
+
+        project_settings_sidebar("zip"),
+        advanced_cocomo_sidebar("zip"),
+
         hr(),
-        h5("Project Settings"),
-        
-        selectInput("zip_complexity", "Complexity:",
-                   choices = c("Low" = "low", "Medium" = "medium", "High" = "high"),
-                   selected = "medium"),
-        
-        sliderInput("zip_team_exp", "Team Experience:",
-                   min = 1, max = 5, value = 4, step = 1),
-        
-        sliderInput("zip_reuse", "Reuse Factor:",
-                   min = 0.7, max = 1.3, value = 1.0, step = 0.05),
-        
-        sliderInput("zip_tools", "Tool Support Quality:",
-                   min = 0.8, max = 1.2, value = 1.0, step = 0.05),
-        
-        numericInput("zip_wage", "Average Annual Wage ($):",
-                    value = 105000, min = 50000, max = 300000, step = 5000),
-        
-        sliderInput("zip_max_team", "Max Team Size:",
-                   min = 1, max = 10, value = 5, step = 1),
-        
-        sliderInput("zip_max_schedule", "Max Schedule (months):",
-                   min = 3, max = 36, value = 24, step = 3),
-        
-        hr(),
-        actionButton("analyze_zip", "Analyze ZIP", 
-                    icon = icon("chart-bar"), 
+        actionButton("analyze_zip", "Analyze ZIP",
+                    icon = icon("chart-bar"),
                     class = "btn-primary btn-lg w-100")
       ),
-      
-      navset_card_tab(
-        nav_panel("📊 Results",
-                 uiOutput("zip_results_summary"),
-                 hr(),
-                 plotlyOutput("zip_lang_chart", height = "400px"),
-                 hr(),
-                 plotlyOutput("zip_cost_breakdown", height = "300px")
-        ),
-        nav_panel("📋 Details",
-                 DTOutput("zip_details_table"),
-                 hr(),
-                 verbatimTextOutput("zip_estimate_text")
-        ),
-        nav_panel("📈 Sensitivity",
-                 uiOutput("zip_sensitivity_ui")
-        )
-      )
+      analysisResultsUI("zip_results", ai_available = ai_available)
     )
   ),
-  
-  # Tab 3: Manual Entry
+
+  # Manual Entry tab
   nav_panel(
     title = "Manual Entry",
     icon = icon("edit"),
@@ -218,7 +257,7 @@ ui <- page_navbar(
       sidebar = sidebar(
         title = "Project Configuration",
         width = 300,
-        
+
         h5("Code Lines by Language"),
         numericInput("manual_r", "R:", value = 0, min = 0),
         numericInput("manual_python", "Python:", value = 0, min = 0),
@@ -226,777 +265,590 @@ ui <- page_navbar(
         numericInput("manual_sql", "SQL:", value = 0, min = 0),
         numericInput("manual_css", "CSS:", value = 0, min = 0),
         numericInput("manual_other", "Other:", value = 0, min = 0),
-        
+
+        project_settings_sidebar("manual"),
+        advanced_cocomo_sidebar("manual"),
+
         hr(),
-        h5("Project Settings"),
-        
-        selectInput("manual_complexity", "Complexity:",
-                   choices = c("Low" = "low", "Medium" = "medium", "High" = "high"),
-                   selected = "medium"),
-        
-        sliderInput("manual_team_exp", "Team Experience:",
-                   min = 1, max = 5, value = 4, step = 1),
-        
-        sliderInput("manual_reuse", "Reuse Factor:",
-                   min = 0.7, max = 1.3, value = 1.0, step = 0.05),
-        
-        sliderInput("manual_tools", "Tool Support Quality:",
-                   min = 0.8, max = 1.2, value = 1.0, step = 0.05),
-        
-        numericInput("manual_wage", "Average Annual Wage ($):",
-                    value = 105000, min = 50000, max = 300000, step = 5000),
-        
-        hr(),
-        actionButton("calculate_manual", "Calculate Estimate", 
-                    icon = icon("calculator"), 
+        actionButton("calculate_manual", "Calculate Estimate",
+                    icon = icon("calculator"),
                     class = "btn-primary btn-lg w-100")
       ),
-      
-      navset_card_tab(
-        nav_panel("📊 Results",
-                 uiOutput("manual_results_summary"),
-                 hr(),
-                 plotlyOutput("manual_lang_chart", height = "400px"),
-                 hr(),
-                 plotlyOutput("manual_cost_breakdown", height = "300px")
-        ),
-        nav_panel("📋 Details",
-                 verbatimTextOutput("manual_estimate_text")
-        ),
-        nav_panel("📈 Sensitivity",
-                 uiOutput("manual_sensitivity_ui")
-        )
-      )
+      analysisResultsUI("manual_results", ai_available = ai_available)
     )
   ),
-  
-  # Tab 4: Compare Scenarios
+
+  # Compare tab
   nav_panel(
     title = "Compare",
     icon = icon("balance-scale"),
-    card(
-      card_header("Compare Multiple Scenarios"),
-      card_body(
-        p("Create and compare up to 3 different cost estimation scenarios side-by-side."),
-        
-        layout_column_wrap(
-          width = 1/3,
-          
-          # Scenario 1
-          card(
-            card_header("Scenario 1", class = "bg-primary text-white"),
-            numericInput("comp_lines_1", "Code Lines:", value = 10000, min = 100),
-            selectInput("comp_complexity_1", "Complexity:", 
-                       choices = c("Low" = "low", "Medium" = "medium", "High" = "high"),
-                       selected = "medium"),
-            sliderInput("comp_team_1", "Team Exp:", min = 1, max = 5, value = 4),
-            sliderInput("comp_reuse_1", "Reuse:", min = 0.7, max = 1.3, value = 1.0, step = 0.1),
-            actionButton("calc_scenario_1", "Calculate", class = "btn-primary w-100")
-          ),
-          
-          # Scenario 2
-          card(
-            card_header("Scenario 2", class = "bg-success text-white"),
-            numericInput("comp_lines_2", "Code Lines:", value = 10000, min = 100),
-            selectInput("comp_complexity_2", "Complexity:", 
-                       choices = c("Low" = "low", "Medium" = "medium", "High" = "high"),
-                       selected = "high"),
-            sliderInput("comp_team_2", "Team Exp:", min = 1, max = 5, value = 3),
-            sliderInput("comp_reuse_2", "Reuse:", min = 0.7, max = 1.3, value = 1.2, step = 0.1),
-            actionButton("calc_scenario_2", "Calculate", class = "btn-success w-100")
-          ),
-          
-          # Scenario 3
-          card(
-            card_header("Scenario 3", class = "bg-info text-white"),
-            numericInput("comp_lines_3", "Code Lines:", value = 10000, min = 100),
-            selectInput("comp_complexity_3", "Complexity:", 
-                       choices = c("Low" = "low", "Medium" = "medium", "High" = "high"),
-                       selected = "low"),
-            sliderInput("comp_team_3", "Team Exp:", min = 1, max = 5, value = 5),
-            sliderInput("comp_reuse_3", "Reuse:", min = 0.7, max = 1.3, value = 0.8, step = 0.1),
-            actionButton("calc_scenario_3", "Calculate", class = "btn-info w-100")
-          )
-        ),
-        
-        hr(),
-        h4("Comparison Results"),
-        plotlyOutput("comparison_chart", height = "400px"),
-        hr(),
-        DTOutput("comparison_table")
-      )
-    )
+    comparisonUI("compare")
   ),
-  
-  # Tab 5: Export & Share
+
+  # Export tab
   nav_panel(
     title = "Export",
     icon = icon("download"),
-    card(
-      card_header("Export & Share Your Analysis"),
-      card_body(
-        layout_column_wrap(
-          width = 1/2,
-          
-          card(
-            card_header("📄 Generate PDF Report"),
-            textInput("report_title", "Project Name:", value = "My Shiny Project"),
-            textInput("report_author", "Author:", value = ""),
-            selectInput("report_source", "Data Source:",
-                       choices = c("Local Analysis" = "local", 
-                                 "ZIP Upload" = "zip", 
-                                 "Manual Entry" = "manual")),
-            downloadButton("download_pdf", "Download PDF Report", 
-                          class = "btn-primary w-100 mt-3")
-          ),
-          
-          card(
-            card_header("🔗 Shareable URL"),
-            p("Generate a URL with pre-filled parameters to share your analysis configuration."),
-            actionButton("generate_url", "Generate Shareable Link", 
-                        icon = icon("link"),
-                        class = "btn-success w-100"),
-            hr(),
-            uiOutput("shareable_url_display")
-          )
-        ),
-        
-        hr(),
-        
-        layout_column_wrap(
-          width = 1/2,
-          
-          card(
-            card_header("📊 Export Data (CSV)"),
-            downloadButton("download_csv", "Download CSV", 
-                          class = "btn-secondary w-100")
-          ),
-          
-          card(
-            card_header("💾 Export Results (JSON)"),
-            downloadButton("download_json", "Download JSON", 
-                          class = "btn-secondary w-100")
-          )
-        )
-      )
-    )
+    exportUI("export")
   ),
-  
-  # Footer
+
+  # Navbar buttons
   nav_spacer(),
   nav_item(
-    tags$a(
-      icon("github"),
-      "GitHub",
-      href = "https://github.com/yourusername/shiny-app-valuation",
-      target = "_blank"
-    )
+    actionButton("btn_user_guide", label = tagList(icon("book"), "User Guide"),
+                 class = "btn-light btn-sm")
   ),
   nav_item(
-    tags$a(
-      icon("question-circle"),
-      "Help",
-      href = "#",
-      onclick = "alert('COCOMO II-based cost estimation for Shiny apps. Visit the Home tab for more info.');"
-    )
+    actionButton("btn_release_notes", label = tagList(icon("clipboard-list"), "Release Notes"),
+                 class = "btn-light btn-sm")
   )
 )
 
 # Server Logic
 server <- function(input, output, session) {
-  
+
   # Reactive values to store analysis results
   results <- reactiveValues(
     local = NULL,
     zip = NULL,
-    manual = NULL,
-    scenarios = list()
+    manual = NULL
   )
-  
+
   # ============================================================================
-  # HOME TAB - Navigation buttons
+  # HOME TAB - Navigation buttons (fixed: plain text tab names)
   # ============================================================================
-  
+
   observeEvent(input$start_local, {
-    nav_select("nav", selected = "📁 Local Folder")
+    nav_select("nav", selected = "Local Folder")
   })
-  
+
   observeEvent(input$start_zip, {
-    nav_select("nav", selected = "📦 ZIP Upload")
+    nav_select("nav", selected = "ZIP Upload")
   })
-  
+
   observeEvent(input$start_manual, {
-    nav_select("nav", selected = "✏️ Manual Entry")
+    nav_select("nav", selected = "Manual Entry")
   })
-  
+
+  # ============================================================================
+  # NAVBAR BUTTONS - User Guide and Release Notes modals
+  # ============================================================================
+
+  observeEvent(input$btn_user_guide, {
+    showModal(modalDialog(
+      tags$div(
+        style = "background: #fff; color: #212529; padding: 20px; border-radius: 6px;",
+        includeMarkdown("markdown/user_guide.md")
+      ),
+      title = "User Guide",
+      size = "l",
+      easyClose = TRUE,
+      footer = modalButton("Close")
+    ))
+  })
+
+  observeEvent(input$btn_release_notes, {
+    showModal(modalDialog(
+      tags$div(
+        style = "background: #fff; color: #212529; padding: 20px; border-radius: 6px;",
+        includeMarkdown("markdown/release_notes.md")
+      ),
+      title = "Release Notes - v1.0.1",
+      size = "l",
+      easyClose = TRUE,
+      footer = modalButton("Close")
+    ))
+  })
+
+  # ============================================================================
+  # HELP BUTTONS - modals for project settings
+  # ============================================================================
+
+  help_content <- list(
+    complexity = list(
+      title = "Complexity",
+      body = tagList(
+        p("This describes how architecturally complex your project is."),
+        tags$ul(
+          tags$li(tags$b("Low:"), " Simple apps with one or two screens,",
+            " basic forms, straightforward logic. Think a single-page",
+            " dashboard or a small CRUD tool."),
+          tags$li(tags$b("Medium:"), " Multi-page apps with several",
+            " interconnected features, moderate data processing,",
+            " and some integration with external services."),
+          tags$li(tags$b("High:"), " Large systems with complex",
+            " architecture, AI/ML components, real-time data,",
+            " heavy integrations, or many interacting modules.")
+        ),
+        p("When in doubt, choose", tags$b("Medium"), ".",
+          " Higher complexity means the model predicts",
+          " exponentially more effort.")
+      )
+    ),
+    team = list(
+      title = "Team Experience",
+      body = tagList(
+        p("Rate your team's average skill level on a 1-5 scale:"),
+        tags$ul(
+          tags$li(tags$b("1 - Novice:"), " New to the language,",
+            " framework, and problem domain. Expect longer ramp-up."),
+          tags$li(tags$b("2 - Beginner:"), " Some exposure but still",
+            " learning. Needs guidance on architecture decisions."),
+          tags$li(tags$b("3 - Competent:"), " Can work independently",
+            " on most tasks. Solid understanding of the stack."),
+          tags$li(tags$b("4 - Proficient:"), " Experienced developers",
+            " who know the tools well. This is the baseline."),
+          tags$li(tags$b("5 - Expert:"), " Deep expertise in the",
+            " domain and tech stack. Writes efficient, clean code fast.")
+        ),
+        p("Higher experience means the team works faster,",
+          " reducing the overall cost estimate.")
+      )
+    ),
+    reuse = list(
+      title = "Reuse Factor",
+      body = tagList(
+        p("How much existing code, libraries, or templates can",
+          " your team reuse in this project?"),
+        tags$ul(
+          tags$li(tags$b("0.70 (High Reuse):"), " Over half the code",
+            " comes from existing packages, templates, or past projects."),
+          tags$li(tags$b("1.00 (Baseline):"), " Typical project with",
+            " about 10% reuse from standard libraries."),
+          tags$li(tags$b("1.30 (Greenfield):"), " Everything is built",
+            " from scratch in an unfamiliar domain.")
+        ),
+        p("Lower values reduce the cost estimate because less",
+          " new code needs to be written.")
+      )
+    ),
+    tools = list(
+      title = "Tool Support Quality",
+      body = tagList(
+        p("How good is your development environment and toolchain?"),
+        tags$ul(
+          tags$li(tags$b("0.80 (Excellent):"), " Full IDE (RStudio/VS Code),",
+            " version control, CI/CD, automated testing, linters,",
+            " and code review processes."),
+          tags$li(tags$b("1.00 (Standard):"), " Basic IDE and version",
+            " control. Some manual processes."),
+          tags$li(tags$b("1.20 (Poor):"), " No IDE, no version control,",
+            " manual deployments, limited tooling.")
+        ),
+        p("Better tools mean faster development.",
+          " Lower values reduce the cost estimate.")
+      )
+    ),
+    wage = list(
+      title = "Average Annual Wage",
+      body = tagList(
+        p("The average annual salary (in USD) for developers on",
+          " the project. This is used to convert person-months of",
+          " effort into a dollar cost."),
+        p("Include the full loaded cost if possible (salary +",
+          " benefits + overhead). If you only know the base salary,",
+          " the default of $105,000 is a reasonable US average for",
+          " data science and software roles."),
+        p("This setting scales the final cost linearly",
+          " - doubling the wage doubles the estimate.")
+      )
+    ),
+    maxteam = list(
+      title = "Max Team Size",
+      body = tagList(
+        p("The maximum number of people you can put on the project",
+          " at the same time."),
+        p("The model uses this to cap how many people work in",
+          " parallel. A smaller team means a longer schedule;",
+          " a larger team (6+) adds coordination overhead (a 10%",
+          " cost premium)."),
+        p("The effective maximum is 8 regardless of this setting,",
+          " because beyond that point coordination costs outweigh",
+          " the benefit of additional people.")
+      )
+    ),
+    maxsched = list(
+      title = "Max Schedule",
+      body = tagList(
+        p("The longest the project is allowed to take, in months."),
+        p("If the natural schedule from the model exceeds this",
+          " limit, the estimator compresses the timeline. Compressed",
+          " timelines cost more because they require senior talent,",
+          " overtime, or additional parallel work streams."),
+        tags$ul(
+          tags$li("Mild compression: +20% cost premium"),
+          tags$li("Moderate compression: +40% cost premium"),
+          tags$li("Heavy compression: +70% cost premium"),
+          tags$li("Extreme compression: +100% cost premium")
+        ),
+        p("Set this to a realistic deadline for your project.")
+      )
+    ),
+    rely = list(
+      title = "Required Reliability",
+      body = tagList(
+        p("How critical is it that the software operates without failure?"),
+        tags$ul(
+          tags$li(tags$b("0.82 (Very Low):"), " Prototype or proof-of-concept.",
+            " Failures have minimal consequence."),
+          tags$li(tags$b("1.00 (Nominal):"), " Standard business application.",
+            " Failures are inconvenient but recoverable."),
+          tags$li(tags$b("1.26 (Very High):"), " Mission-critical system.",
+            " Failures cause significant financial or safety impact.")
+        ),
+        p("Higher reliability requires more testing, reviews,",
+          " and defensive coding, which increases effort.")
+      )
+    ),
+    cplx = list(
+      title = "Product Complexity",
+      body = tagList(
+        p("The algorithmic and computational complexity of the software."),
+        tags$ul(
+          tags$li(tags$b("0.73 (Very Low):"), " Simple CRUD operations,",
+            " basic forms, straightforward data display."),
+          tags$li(tags$b("1.00 (Nominal):"), " Moderate logic, standard",
+            " data processing, typical web application."),
+          tags$li(tags$b("1.74 (Extra High):"), " Heavy ML/AI, real-time",
+            " processing, complex algorithms, or distributed systems.")
+        ),
+        p("This is independent of project size - a small app",
+          " can still have complex algorithms.")
+      )
+    ),
+    ruse = list(
+      title = "Required Reusability",
+      body = tagList(
+        p("How much effort is spent making components reusable",
+          " across projects?"),
+        tags$ul(
+          tags$li(tags$b("0.95 (Low):"), " Code is written for this",
+            " project only. Minimal documentation or generalization."),
+          tags$li(tags$b("1.00 (Nominal):"), " Some consideration for",
+            " reuse within the same project."),
+          tags$li(tags$b("1.24 (Extra High):"), " Building generalized",
+            " libraries meant to be shared across multiple projects.",
+            " Requires extensive documentation and testing.")
+        ),
+        p("Note: this is different from the Reuse Factor setting,",
+          " which measures how much existing code you can leverage.",
+          " This measures the effort to", tags$em("create"), " reusable code.")
+      )
+    ),
+    pcon = list(
+      title = "Personnel Continuity",
+      body = tagList(
+        p("How stable is your development team over the project lifetime?"),
+        tags$ul(
+          tags$li(tags$b("0.81 (Very High continuity):"), " Stable team",
+            " with very low turnover. Everyone stays through completion."),
+          tags$li(tags$b("1.00 (Nominal):"), " Typical turnover.",
+            " Some team members rotate during the project."),
+          tags$li(tags$b("1.29 (Very Low continuity):"), " High churn.",
+            " Frequent departures requiring constant onboarding.")
+        ),
+        p("Team turnover increases effort because new members",
+          " need ramp-up time and knowledge is lost.")
+      )
+    ),
+    apex = list(
+      title = "Application Experience",
+      body = tagList(
+        p("How familiar is your team with the application domain",
+          " (not just the programming language)?"),
+        tags$ul(
+          tags$li(tags$b("0.81 (Very High):"), " Team has deep domain",
+            " expertise. They have built similar applications before."),
+          tags$li(tags$b("1.00 (Nominal):"), " Moderate familiarity.",
+            " Team understands the domain but hasn't built this exact type."),
+          tags$li(tags$b("1.22 (Very Low):"), " Brand new domain.",
+            " Team needs significant learning before being productive.")
+        ),
+        p("This is distinct from Team Experience (general skill level).",
+          " A senior developer can still be new to a specific domain",
+          " like finance or bioinformatics.")
+      )
+    ),
+    maint_rate = list(
+      title = "Annual Maintenance Rate",
+      body = tagList(
+        p("The percentage of the original build cost spent annually",
+          " on maintenance (bug fixes, updates, minor enhancements)."),
+        tags$ul(
+          tags$li(tags$b("15-20%:"), " Typical for most applications.",
+            " Covers routine bug fixes, dependency updates, and",
+            " minor feature tweaks."),
+          tags$li(tags$b("25-30%:"), " Active applications with frequent",
+            " change requests or regulatory updates."),
+          tags$li(tags$b("35-40%:"), " Legacy systems or rapidly evolving",
+            " domains requiring constant adaptation.")
+        ),
+        p("The model compounds maintenance costs at 5% per year to",
+          " account for growing complexity and knowledge turnover.",
+          " Set to 0 to exclude maintenance from the estimate.")
+      )
+    ),
+    maint_years = list(
+      title = "Maintenance Years",
+      body = tagList(
+        p("How many years of post-deployment maintenance to include",
+          " in the Total Cost of Ownership (TCO) calculation."),
+        tags$ul(
+          tags$li(tags$b("0:"), " No maintenance projection.",
+            " Only the build cost is shown."),
+          tags$li(tags$b("3-5 years:"), " Typical planning horizon",
+            " for most business applications."),
+          tags$li(tags$b("7-10 years:"), " Long-lived enterprise or",
+            " infrastructure systems.")
+        ),
+        p("Setting this to 1 or more enables the Maintenance & TCO",
+          " panel in the results, showing year-by-year costs and",
+          " cumulative total cost of ownership.")
+      )
+    )
+  )
+
+  # Register help button handlers for all three tab prefixes
+  lapply(c("local", "zip", "manual"), function(prefix) {
+    lapply(names(help_content), function(key) {
+      btn_id <- paste0(prefix, "_help_", key)
+      hc <- help_content[[key]]
+      observeEvent(input[[btn_id]], {
+        showModal(modalDialog(
+          tags$div(
+            style = paste0(
+              "background: #fff; color: #212529;",
+              " padding: 15px; border-radius: 6px;"
+            ),
+            hc$body
+          ),
+          title = hc$title,
+          size = "m",
+          easyClose = TRUE,
+          footer = modalButton("Close")
+        ))
+      })
+    })
+  })
+
+  # ============================================================================
+  # HELPER: build params list from inputs
+  # ============================================================================
+
+  local_params <- reactive({
+    list(
+      complexity = input$local_complexity,
+      team_exp = input$local_team_exp,
+      reuse = input$local_reuse,
+      tools = input$local_tools,
+      wage = input$local_wage,
+      max_team = input$local_max_team,
+      max_schedule = input$local_max_schedule,
+      rely = input$local_rely,
+      cplx = input$local_cplx,
+      ruse = input$local_ruse,
+      pcon = input$local_pcon,
+      apex = input$local_apex,
+      maintenance_rate = input$local_maint_rate,
+      maintenance_years = input$local_maint_years
+    )
+  })
+
+  zip_params <- reactive({
+    list(
+      complexity = input$zip_complexity,
+      team_exp = input$zip_team_exp,
+      reuse = input$zip_reuse,
+      tools = input$zip_tools,
+      wage = input$zip_wage,
+      max_team = input$zip_max_team,
+      max_schedule = input$zip_max_schedule,
+      rely = input$zip_rely,
+      cplx = input$zip_cplx,
+      ruse = input$zip_ruse,
+      pcon = input$zip_pcon,
+      apex = input$zip_apex,
+      maintenance_rate = input$zip_maint_rate,
+      maintenance_years = input$zip_maint_years
+    )
+  })
+
+  manual_params <- reactive({
+    list(
+      complexity = input$manual_complexity,
+      team_exp = input$manual_team_exp,
+      reuse = input$manual_reuse,
+      tools = input$manual_tools,
+      wage = input$manual_wage,
+      max_team = input$manual_max_team,
+      max_schedule = input$manual_max_schedule,
+      rely = input$manual_rely,
+      cplx = input$manual_cplx,
+      ruse = input$manual_ruse,
+      pcon = input$manual_pcon,
+      apex = input$manual_apex,
+      maintenance_rate = input$manual_maint_rate,
+      maintenance_years = input$manual_maint_years
+    )
+  })
+
   # ============================================================================
   # LOCAL FOLDER ANALYSIS
   # ============================================================================
-  
+
   observeEvent(input$browse_folder, {
-    # OS-agnostic folder browser
-    # Works on Windows, macOS, and Linux with multiple fallback options
     path <- tryCatch({
       os_type <- Sys.info()[["sysname"]]
-      
-      # Try RStudio API first (works on all platforms when in RStudio)
+
       if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
         selected <- rstudioapi::selectDirectory(caption = "Select Repository Folder")
-        if (!is.null(selected) && nzchar(selected)) {
-          return(selected)
-        }
+        if (!is.null(selected) && nzchar(selected)) return(selected)
       }
-      
-      # Platform-specific native dialogs
-      if (os_type == "Windows") {
-        # Windows: use native choose.dir if available
-        if (.Platform$OS.type == "windows") {
-          selected <- utils::choose.dir(caption = "Select Repository Folder")
-          if (!is.null(selected) && nzchar(selected)) {
-            return(selected)
-          }
-        }
-      } else if (os_type == "Darwin") {
-        # macOS: use AppleScript for native dialog
+
+      if (os_type == "Darwin") {
         cmd <- "osascript -e 'POSIX path of (choose folder with prompt \"Select Repository Folder\")'"
         res <- suppressWarnings(system(cmd, intern = TRUE, ignore.stderr = TRUE))
         if (length(res) > 0 && nzchar(res[1])) {
-          # Remove trailing newline and whitespace
-          selected <- trimws(res[1])
-          # Remove trailing slash if present
-          selected <- sub("/$", "", selected)
-          if (nzchar(selected)) {
-            return(selected)
-          }
+          selected <- sub("/$", "", trimws(res[1]))
+          if (nzchar(selected)) return(selected)
         }
       }
-      
-      # Universal fallback: tcltk (works on all platforms if installed)
+
       if (requireNamespace("tcltk", quietly = TRUE)) {
         selected <- tcltk::tk_choose.dir(caption = "Select Repository Folder")
-        if (!is.null(selected) && nzchar(selected)) {
-          return(selected)
-        }
+        if (!is.null(selected) && nzchar(selected)) return(selected)
       }
-      
-      # If all methods failed
+
       stop("No folder selection method succeeded")
-      
     }, error = function(e) {
-      showNotification(
-        paste0("Folder browser not available on your system. ",
-               "Please enter the path manually in the text field above."), 
-        type = "warning", 
-        duration = 8
-      )
+      showNotification("Folder browser not available. Please enter the path manually.",
+                      type = "warning", duration = 8)
       return(NULL)
     })
-    
-    # Update the text input if we got a valid path
+
     if (!is.null(path) && nzchar(path)) {
       updateTextInput(session, "local_path", value = path)
-      showNotification("Folder selected successfully!", type = "message", duration = 3)
+      showNotification("Folder selected!", type = "message", duration = 3)
     }
   })
-  
+
   observeEvent(input$analyze_local, {
     req(input$local_path)
-    
+
     if (!dir.exists(input$local_path)) {
       showNotification("Directory does not exist!", type = "error")
       return(NULL)
     }
-    
-    showNotification("Analyzing repository... This may take a moment.", 
-                    type = "message", duration = NULL, id = "analyzing")
-    
+
     tryCatch({
-      # Run the analysis (capture output)
-      capture.output({
-        analysis <- analyze_repo_code(
-          path = input$local_path,
-          avg_wage = input$local_wage,
-          complexity = input$local_complexity,
-          team_experience = input$local_team_exp,
-          reuse_factor = input$local_reuse,
-          tool_support = input$local_tools,
-          max_team_size = input$local_max_team,
-          max_schedule_months = input$local_max_schedule
-        )
+      withProgress(message = "Analyzing repository...", value = 0, {
+        capture.output({
+          analysis <- analyze_repo_code(
+            path = input$local_path,
+            avg_wage = input$local_wage,
+            complexity = input$local_complexity,
+            team_experience = input$local_team_exp,
+            reuse_factor = input$local_reuse,
+            tool_support = input$local_tools,
+            max_team_size = input$local_max_team,
+            max_schedule_months = input$local_max_schedule,
+            progress_callback = function(current, total) {
+              setProgress(
+                value = current / total,
+                detail = paste0("File ", current, " of ", total)
+              )
+            }
+          )
+        })
+        results$local <- list(lang_summary = analysis)
       })
-      
-      # Store in reactive values
-      results$local <- list(
-        lang_summary = analysis,
-        params = list(
-          complexity = input$local_complexity,
-          team_exp = input$local_team_exp,
-          reuse = input$local_reuse,
-          tools = input$local_tools,
-          wage = input$local_wage,
-          max_team = input$local_max_team,
-          max_schedule = input$local_max_schedule
-        )
-      )
-      
-      removeNotification(id = "analyzing")
       showNotification("Analysis complete!", type = "message", duration = 3)
-      
     }, error = function(e) {
-      removeNotification(id = "analyzing")
       showNotification(paste("Error:", e$message), type = "error", duration = 10)
     })
   })
-  
-  # Local Results Summary
-  output$local_results_summary <- renderUI({
+
+  local_data <- reactive({
     req(results$local)
-    
-    lang_df <- results$local$lang_summary
-    total_code <- sum(lang_df$Code)
-    
-    # Calculate estimate
-    language_mix <- setNames(lang_df$Code, lang_df$Language)
-    est <- estimate_shiny_cost(
-      code_lines = total_code,
-      complexity = results$local$params$complexity,
-      team_experience = results$local$params$team_exp,
-      reuse_factor = results$local$params$reuse,
-      tool_support = results$local$params$tools,
-      language_mix = language_mix
-    )
-    
-    # Create value boxes
-    layout_column_wrap(
-      width = 1/4,
-      value_box(
-        title = "Total Code Lines",
-        value = format(total_code, big.mark = ","),
-        showcase = icon("code"),
-        theme = "primary"
-      ),
-      value_box(
-        title = "Estimated Cost",
-        value = paste0("$", format(est$estimated_cost_usd, big.mark = ",")),
-        showcase = icon("dollar-sign"),
-        theme = "success"
-      ),
-      value_box(
-        title = "Schedule",
-        value = paste0(est$schedule_months, " months"),
-        showcase = icon("calendar"),
-        theme = "info"
-      ),
-      value_box(
-        title = "Team Size",
-        value = paste0(est$people_required, " people"),
-        showcase = icon("users"),
-        theme = "warning"
-      )
-    )
+    results$local
   })
-  
-  # Local Language Chart
-  output$local_lang_chart <- renderPlotly({
-    req(results$local)
-    
-    lang_df <- results$local$lang_summary
-    
-    plot_ly(lang_df, labels = ~Language, values = ~Code, type = 'pie',
-           textposition = 'inside',
-           textinfo = 'label+percent',
-           hoverinfo = 'label+value+percent',
-           marker = list(colors = RColorBrewer::brewer.pal(nrow(lang_df), "Set3"))) %>%
-      layout(title = "Code Distribution by Language",
-             showlegend = TRUE)
-  })
-  
-  # Local Cost Breakdown
-  output$local_cost_breakdown <- renderPlotly({
-    req(results$local)
-    
-    lang_df <- results$local$lang_summary
-    total_code <- sum(lang_df$Code)
-    language_mix <- setNames(lang_df$Code, lang_df$Language)
-    
-    est <- estimate_shiny_cost(
-      code_lines = total_code,
-      complexity = results$local$params$complexity,
-      team_experience = results$local$params$team_exp,
-      reuse_factor = results$local$params$reuse,
-      tool_support = results$local$params$tools,
-      language_mix = language_mix
-    )
-    
-    breakdown_data <- data.frame(
-      Metric = c("Base Cost", "Team Experience", "Reuse Factor", "Tool Support", "Total"),
-      Value = c(
-        est$estimated_cost_usd * 0.7,
-        est$estimated_cost_usd * 0.1,
-        est$estimated_cost_usd * 0.1,
-        est$estimated_cost_usd * 0.1,
-        est$estimated_cost_usd
-      )
-    )
-    
-    plot_ly(breakdown_data, x = ~Metric, y = ~Value, type = 'bar',
-           marker = list(color = c('lightblue', 'lightgreen', 'lightyellow', 'lightcoral', 'darkblue'))) %>%
-      layout(title = "Cost Breakdown Estimation",
-             yaxis = list(title = "Cost (USD)"),
-             xaxis = list(title = ""))
-  })
-  
-  # Local Details Table
-  output$local_details_table <- renderDT({
-    req(results$local)
-    
-    datatable(results$local$lang_summary, 
-             options = list(pageLength = 10, scrollX = TRUE),
-             rownames = FALSE)
-  })
-  
-  # Local Estimate Text
-  output$local_estimate_text <- renderText({
-    req(results$local)
-    
-    lang_df <- results$local$lang_summary
-    total_code <- sum(lang_df$Code)
-    language_mix <- setNames(lang_df$Code, lang_df$Language)
-    
-    est <- estimate_shiny_cost(
-      code_lines = total_code,
-      complexity = results$local$params$complexity,
-      team_experience = results$local$params$team_exp,
-      reuse_factor = results$local$params$reuse,
-      tool_support = results$local$params$tools,
-      language_mix = language_mix
-    )
-    
-    paste0(
-      "===== COST ESTIMATION REPORT =====\n\n",
-      "Total Code Lines: ", format(total_code, big.mark = ","), "\n",
-      "Estimated Cost: $", format(est$estimated_cost_usd, big.mark = ","), "\n",
-      "Schedule: ", est$schedule_months, " months (", round(est$schedule_months/12, 1), " years)\n",
-      "Team Size: ", est$people_required, " people\n",
-      "Effort: ", est$effort_person_months, " person-months\n\n",
-      "Parameters Used:\n",
-      "  Complexity: ", results$local$params$complexity, "\n",
-      "  Team Experience: ", results$local$params$team_exp, "\n",
-      "  Reuse Factor: ", results$local$params$reuse, "\n",
-      "  Tool Support: ", results$local$params$tools, "\n"
-    )
-  })
-  
-  # Local Sensitivity Analysis
-  output$local_sensitivity_ui <- renderUI({
-    req(results$local)
-    
-    tagList(
-      h4("Sensitivity Analysis: How Parameters Affect Cost"),
-      p("Adjust the sliders below to see how changes impact your estimates:"),
-      
-      card(
-        card_body(
-          sliderInput("sens_local_complexity_mult", "Complexity Multiplier:",
-                     min = 0.8, max = 1.5, value = 1.0, step = 0.1),
-          sliderInput("sens_local_team_mult", "Team Experience Multiplier:",
-                     min = 0.8, max = 1.2, value = 1.0, step = 0.05),
-          plotlyOutput("local_sensitivity_chart", height = "400px")
-        )
-      )
-    )
-  })
-  
-  output$local_sensitivity_chart <- renderPlotly({
-    req(results$local)
-    
-    lang_df <- results$local$lang_summary
-    total_code <- sum(lang_df$Code)
-    language_mix <- setNames(lang_df$Code, lang_df$Language)
-    
-    # Base estimate
-    base_est <- estimate_shiny_cost(
-      code_lines = total_code,
-      complexity = results$local$params$complexity,
-      team_experience = results$local$params$team_exp,
-      reuse_factor = results$local$params$reuse,
-      tool_support = results$local$params$tools,
-      language_mix = language_mix
-    )$estimated_cost_usd
-    
-    # Sensitivity ranges
-    complexity_vals <- c("low", "medium", "high")
-    team_vals <- 1:5
-    
-    sens_data <- data.frame()
-    for (comp in complexity_vals) {
-      for (team in team_vals) {
-        est <- estimate_shiny_cost(
-          code_lines = total_code,
-          complexity = comp,
-          team_experience = team,
-          reuse_factor = results$local$params$reuse,
-          tool_support = results$local$params$tools,
-          language_mix = language_mix
-        )
-        sens_data <- rbind(sens_data, data.frame(
-          Complexity = comp,
-          TeamExp = team,
-          Cost = est$estimated_cost_usd
-        ))
-      }
-    }
-    
-    plot_ly(sens_data, x = ~TeamExp, y = ~Cost, color = ~Complexity, 
-           type = 'scatter', mode = 'lines+markers') %>%
-      layout(title = "Cost Sensitivity: Team Experience vs Complexity",
-             xaxis = list(title = "Team Experience Level"),
-             yaxis = list(title = "Estimated Cost (USD)"))
-  })
-  
+
+  analysisResultsServer("local_results", local_data, local_params, ai_available = ai_available)
+
   # ============================================================================
-  # ZIP UPLOAD ANALYSIS (Similar structure to Local)
+  # ZIP UPLOAD ANALYSIS
   # ============================================================================
-  
+
   observeEvent(input$analyze_zip, {
     req(input$zip_file)
-    
-    showNotification("Processing ZIP file...", type = "message", duration = NULL, id = "zip_processing")
-    
+
+    # Security: check file size (50MB limit)
+    if (file.info(input$zip_file$datapath)$size > 50 * 1024 * 1024) {
+      showNotification("File exceeds 50MB limit.", type = "error")
+      return(NULL)
+    }
+
     tryCatch({
-      # Extract ZIP to temp directory
-      temp_dir <- tempdir()
-      unzip(input$zip_file$datapath, exdir = temp_dir)
-      
-      # Find the actual repo folder (might be nested)
-      extracted_folders <- list.dirs(temp_dir, recursive = FALSE)
-      repo_path <- extracted_folders[1]
-      
-      # Run analysis
-      capture.output({
-        analysis <- analyze_repo_code(
-          path = repo_path,
-          avg_wage = input$zip_wage,
-          complexity = input$zip_complexity,
-          team_experience = input$zip_team_exp,
-          reuse_factor = input$zip_reuse,
-          tool_support = input$zip_tools,
-          max_team_size = input$zip_max_team,
-          max_schedule_months = input$zip_max_schedule
-        )
+      withProgress(message = "Analyzing ZIP contents...", value = 0, {
+        # Use isolated temp directory instead of shared tempdir()
+        temp_dir <- tempfile(pattern = "zip_analysis_")
+        dir.create(temp_dir)
+        on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+        setProgress(value = 0.1, detail = "Extracting ZIP file...")
+        unzip(input$zip_file$datapath, exdir = temp_dir)
+
+        # Validate: no path traversal
+        extracted_files <- list.files(temp_dir, recursive = TRUE, full.names = TRUE)
+        relative_paths <- gsub(paste0("^", normalizePath(temp_dir)), "", normalizePath(extracted_files))
+        if (any(grepl("\\.\\.", relative_paths))) {
+          showNotification("ZIP contains invalid paths (path traversal detected).", type = "error")
+          return(NULL)
+        }
+
+        # Find the actual repo folder
+        extracted_folders <- list.dirs(temp_dir, recursive = FALSE)
+        repo_path <- if (length(extracted_folders) > 0) extracted_folders[1] else temp_dir
+
+        setProgress(value = 0.2, detail = "Analyzing files...")
+        capture.output({
+          analysis <- analyze_repo_code(
+            path = repo_path,
+            avg_wage = input$zip_wage,
+            complexity = input$zip_complexity,
+            team_experience = input$zip_team_exp,
+            reuse_factor = input$zip_reuse,
+            tool_support = input$zip_tools,
+            max_team_size = input$zip_max_team,
+            max_schedule_months = input$zip_max_schedule,
+            progress_callback = function(current, total) {
+              setProgress(
+                value = 0.2 + 0.8 * (current / total),
+                detail = paste0("File ", current, " of ", total)
+              )
+            }
+          )
+        })
+        results$zip <- list(lang_summary = analysis)
       })
-      
-      # Store results
-      results$zip <- list(
-        lang_summary = analysis,
-        params = list(
-          complexity = input$zip_complexity,
-          team_exp = input$zip_team_exp,
-          reuse = input$zip_reuse,
-          tools = input$zip_tools,
-          wage = input$zip_wage,
-          max_team = input$zip_max_team,
-          max_schedule = input$zip_max_schedule
-        )
-      )
-      
-      # Cleanup
-      unlink(temp_dir, recursive = TRUE)
-      
-      removeNotification(id = "zip_processing")
       showNotification("ZIP analysis complete!", type = "message", duration = 3)
-      
     }, error = function(e) {
-      removeNotification(id = "zip_processing")
-      showNotification(paste("Error processing ZIP:", e$message), type = "error", duration = 10)
+      showNotification(paste("Error:", e$message), type = "error", duration = 10)
     })
   })
-  
-  # ZIP outputs (similar to local)
-  output$zip_results_summary <- renderUI({
+
+  zip_data <- reactive({
     req(results$zip)
-    
-    lang_df <- results$zip$lang_summary
-    total_code <- sum(lang_df$Code)
-    
-    language_mix <- setNames(lang_df$Code, lang_df$Language)
-    est <- estimate_shiny_cost(
-      code_lines = total_code,
-      complexity = results$zip$params$complexity,
-      team_experience = results$zip$params$team_exp,
-      reuse_factor = results$zip$params$reuse,
-      tool_support = results$zip$params$tools,
-      language_mix = language_mix
-    )
-    
-    layout_column_wrap(
-      width = 1/4,
-      value_box(
-        title = "Total Code Lines",
-        value = format(total_code, big.mark = ","),
-        showcase = icon("code"),
-        theme = "primary"
-      ),
-      value_box(
-        title = "Estimated Cost",
-        value = paste0("$", format(est$estimated_cost_usd, big.mark = ",")),
-        showcase = icon("dollar-sign"),
-        theme = "success"
-      ),
-      value_box(
-        title = "Schedule",
-        value = paste0(est$schedule_months, " months"),
-        showcase = icon("calendar"),
-        theme = "info"
-      ),
-      value_box(
-        title = "Team Size",
-        value = paste0(est$people_required, " people"),
-        showcase = icon("users"),
-        theme = "warning"
-      )
-    )
+    results$zip
   })
-  
-  output$zip_lang_chart <- renderPlotly({
-    req(results$zip)
-    
-    lang_df <- results$zip$lang_summary
-    
-    plot_ly(lang_df, labels = ~Language, values = ~Code, type = 'pie',
-           textposition = 'inside',
-           textinfo = 'label+percent',
-           hoverinfo = 'label+value+percent',
-           marker = list(colors = RColorBrewer::brewer.pal(nrow(lang_df), "Set3"))) %>%
-      layout(title = "Code Distribution by Language",
-             showlegend = TRUE)
-  })
-  
-  output$zip_cost_breakdown <- renderPlotly({
-    req(results$zip)
-    
-    lang_df <- results$zip$lang_summary
-    total_code <- sum(lang_df$Code)
-    language_mix <- setNames(lang_df$Code, lang_df$Language)
-    
-    est <- estimate_shiny_cost(
-      code_lines = total_code,
-      complexity = results$zip$params$complexity,
-      team_experience = results$zip$params$team_exp,
-      reuse_factor = results$zip$params$reuse,
-      tool_support = results$zip$params$tools,
-      language_mix = language_mix
-    )
-    
-    breakdown_data <- data.frame(
-      Metric = c("Base Cost", "Team Experience", "Reuse Factor", "Tool Support", "Total"),
-      Value = c(
-        est$estimated_cost_usd * 0.7,
-        est$estimated_cost_usd * 0.1,
-        est$estimated_cost_usd * 0.1,
-        est$estimated_cost_usd * 0.1,
-        est$estimated_cost_usd
-      )
-    )
-    
-    plot_ly(breakdown_data, x = ~Metric, y = ~Value, type = 'bar',
-           marker = list(color = c('lightblue', 'lightgreen', 'lightyellow', 'lightcoral', 'darkblue'))) %>%
-      layout(title = "Cost Breakdown Estimation",
-             yaxis = list(title = "Cost (USD)"),
-             xaxis = list(title = ""))
-  })
-  
-  output$zip_details_table <- renderDT({
-    req(results$zip)
-    
-    datatable(results$zip$lang_summary, 
-             options = list(pageLength = 10, scrollX = TRUE),
-             rownames = FALSE)
-  })
-  
-  output$zip_estimate_text <- renderText({
-    req(results$zip)
-    
-    lang_df <- results$zip$lang_summary
-    total_code <- sum(lang_df$Code)
-    language_mix <- setNames(lang_df$Code, lang_df$Language)
-    
-    est <- estimate_shiny_cost(
-      code_lines = total_code,
-      complexity = results$zip$params$complexity,
-      team_experience = results$zip$params$team_exp,
-      reuse_factor = results$zip$params$reuse,
-      tool_support = results$zip$params$tools,
-      language_mix = language_mix
-    )
-    
-    paste0(
-      "===== COST ESTIMATION REPORT =====\n\n",
-      "Total Code Lines: ", format(total_code, big.mark = ","), "\n",
-      "Estimated Cost: $", format(est$estimated_cost_usd, big.mark = ","), "\n",
-      "Schedule: ", est$schedule_months, " months (", round(est$schedule_months/12, 1), " years)\n",
-      "Team Size: ", est$people_required, " people\n",
-      "Effort: ", est$effort_person_months, " person-months\n\n",
-      "Parameters Used:\n",
-      "  Complexity: ", results$zip$params$complexity, "\n",
-      "  Team Experience: ", results$zip$params$team_exp, "\n",
-      "  Reuse Factor: ", results$zip$params$reuse, "\n",
-      "  Tool Support: ", results$zip$params$tools, "\n"
-    )
-  })
-  
-  output$zip_sensitivity_ui <- renderUI({
-    req(results$zip)
-    
-    tagList(
-      h4("Sensitivity Analysis"),
-      p("See how parameter changes affect your estimates:"),
-      plotlyOutput("zip_sensitivity_chart", height = "400px")
-    )
-  })
-  
-  output$zip_sensitivity_chart <- renderPlotly({
-    req(results$zip)
-    
-    lang_df <- results$zip$lang_summary
-    total_code <- sum(lang_df$Code)
-    language_mix <- setNames(lang_df$Code, lang_df$Language)
-    
-    complexity_vals <- c("low", "medium", "high")
-    team_vals <- 1:5
-    
-    sens_data <- data.frame()
-    for (comp in complexity_vals) {
-      for (team in team_vals) {
-        est <- estimate_shiny_cost(
-          code_lines = total_code,
-          complexity = comp,
-          team_experience = team,
-          reuse_factor = results$zip$params$reuse,
-          tool_support = results$zip$params$tools,
-          language_mix = language_mix
-        )
-        sens_data <- rbind(sens_data, data.frame(
-          Complexity = comp,
-          TeamExp = team,
-          Cost = est$estimated_cost_usd
-        ))
-      }
-    }
-    
-    plot_ly(sens_data, x = ~TeamExp, y = ~Cost, color = ~Complexity, 
-           type = 'scatter', mode = 'lines+markers') %>%
-      layout(title = "Cost Sensitivity Analysis",
-             xaxis = list(title = "Team Experience Level"),
-             yaxis = list(title = "Estimated Cost (USD)"))
-  })
-  
+
+  analysisResultsServer("zip_results", zip_data, zip_params, ai_available = ai_available)
+
   # ============================================================================
   # MANUAL ENTRY
   # ============================================================================
-  
+
   observeEvent(input$calculate_manual, {
-    # Build language mix from inputs
     language_mix <- list(
       "R" = input$manual_r,
       "Python" = input$manual_python,
@@ -1005,31 +857,16 @@ server <- function(input, output, session) {
       "CSS" = input$manual_css,
       "Other" = input$manual_other
     )
-    
-    # Remove zeros
+
     language_mix <- language_mix[language_mix > 0]
-    
+
     if (length(language_mix) == 0) {
       showNotification("Please enter at least one code line count.", type = "warning")
       return(NULL)
     }
-    
-    total_code <- sum(unlist(language_mix))
-    
-    # Calculate estimate
-    est <- estimate_shiny_cost(
-      code_lines = total_code,
-      complexity = input$manual_complexity,
-      team_experience = input$manual_team_exp,
-      reuse_factor = input$manual_reuse,
-      tool_support = input$manual_tools,
-      language_mix = language_mix
-    )
-    
-    # Store results
+
     results$manual <- list(
       language_mix = language_mix,
-      estimate = est,
       params = list(
         complexity = input$manual_complexity,
         team_exp = input$manual_team_exp,
@@ -1038,345 +875,40 @@ server <- function(input, output, session) {
         wage = input$manual_wage
       )
     )
-    
+
     showNotification("Calculation complete!", type = "message", duration = 3)
   })
-  
-  output$manual_results_summary <- renderUI({
+
+  manual_data <- reactive({
     req(results$manual)
-    
-    est <- results$manual$estimate
-    
-    layout_column_wrap(
-      width = 1/4,
-      value_box(
-        title = "Total Code Lines",
-        value = format(est$code_lines, big.mark = ","),
-        showcase = icon("code"),
-        theme = "primary"
-      ),
-      value_box(
-        title = "Estimated Cost",
-        value = paste0("$", format(est$estimated_cost_usd, big.mark = ",")),
-        showcase = icon("dollar-sign"),
-        theme = "success"
-      ),
-      value_box(
-        title = "Schedule",
-        value = paste0(est$schedule_months, " months"),
-        showcase = icon("calendar"),
-        theme = "info"
-      ),
-      value_box(
-        title = "Team Size",
-        value = paste0(est$people_required, " people"),
-        showcase = icon("users"),
-        theme = "warning"
-      )
-    )
+    results$manual
   })
-  
-  output$manual_lang_chart <- renderPlotly({
-    req(results$manual)
-    
-    lang_mix <- results$manual$language_mix
-    lang_df <- data.frame(
-      Language = names(lang_mix),
-      Code = unlist(lang_mix)
-    )
-    
-    plot_ly(lang_df, labels = ~Language, values = ~Code, type = 'pie',
-           textposition = 'inside',
-           textinfo = 'label+percent',
-           hoverinfo = 'label+value+percent',
-           marker = list(colors = RColorBrewer::brewer.pal(nrow(lang_df), "Set3"))) %>%
-      layout(title = "Code Distribution by Language",
-             showlegend = TRUE)
-  })
-  
-  output$manual_cost_breakdown <- renderPlotly({
-    req(results$manual)
-    
-    est <- results$manual$estimate
-    
-    breakdown_data <- data.frame(
-      Metric = c("Base Cost", "Team Experience", "Reuse Factor", "Tool Support", "Total"),
-      Value = c(
-        est$estimated_cost_usd * 0.7,
-        est$estimated_cost_usd * 0.1,
-        est$estimated_cost_usd * 0.1,
-        est$estimated_cost_usd * 0.1,
-        est$estimated_cost_usd
-      )
-    )
-    
-    plot_ly(breakdown_data, x = ~Metric, y = ~Value, type = 'bar',
-           marker = list(color = c('lightblue', 'lightgreen', 'lightyellow', 'lightcoral', 'darkblue'))) %>%
-      layout(title = "Cost Breakdown Estimation",
-             yaxis = list(title = "Cost (USD)"),
-             xaxis = list(title = ""))
-  })
-  
-  output$manual_estimate_text <- renderText({
-    req(results$manual)
-    
-    est <- results$manual$estimate
-    
-    paste0(
-      "===== COST ESTIMATION REPORT =====\n\n",
-      "Total Code Lines: ", format(est$code_lines, big.mark = ","), "\n",
-      "Estimated Cost: $", format(est$estimated_cost_usd, big.mark = ","), "\n",
-      "Schedule: ", est$schedule_months, " months (", round(est$schedule_months/12, 1), " years)\n",
-      "Team Size: ", est$people_required, " people\n",
-      "Effort: ", est$effort_person_months, " person-months\n\n",
-      "Parameters Used:\n",
-      "  Complexity: ", results$manual$params$complexity, "\n",
-      "  Team Experience: ", results$manual$params$team_exp, "\n",
-      "  Reuse Factor: ", results$manual$params$reuse, "\n",
-      "  Tool Support: ", results$manual$params$tools, "\n"
-    )
-  })
-  
-  output$manual_sensitivity_ui <- renderUI({
-    req(results$manual)
-    
-    tagList(
-      h4("Sensitivity Analysis"),
-      plotlyOutput("manual_sensitivity_chart", height = "400px")
-    )
-  })
-  
-  output$manual_sensitivity_chart <- renderPlotly({
-    req(results$manual)
-    
-    total_code <- results$manual$estimate$code_lines
-    language_mix <- results$manual$language_mix
-    
-    complexity_vals <- c("low", "medium", "high")
-    team_vals <- 1:5
-    
-    sens_data <- data.frame()
-    for (comp in complexity_vals) {
-      for (team in team_vals) {
-        est <- estimate_shiny_cost(
-          code_lines = total_code,
-          complexity = comp,
-          team_experience = team,
-          reuse_factor = results$manual$params$reuse,
-          tool_support = results$manual$params$tools,
-          language_mix = language_mix
-        )
-        sens_data <- rbind(sens_data, data.frame(
-          Complexity = comp,
-          TeamExp = team,
-          Cost = est$estimated_cost_usd
-        ))
-      }
-    }
-    
-    plot_ly(sens_data, x = ~TeamExp, y = ~Cost, color = ~Complexity, 
-           type = 'scatter', mode = 'lines+markers') %>%
-      layout(title = "Cost Sensitivity Analysis",
-             xaxis = list(title = "Team Experience Level"),
-             yaxis = list(title = "Estimated Cost (USD)"))
-  })
-  
+
+  analysisResultsServer("manual_results", manual_data, manual_params, ai_available = ai_available)
+
   # ============================================================================
-  # COMPARISON TAB
+  # COMPARISON & EXPORT MODULES
   # ============================================================================
-  
-  observeEvent(input$calc_scenario_1, {
-    est <- estimate_shiny_cost(
-      code_lines = input$comp_lines_1,
-      complexity = input$comp_complexity_1,
-      team_experience = input$comp_team_1,
-      reuse_factor = input$comp_reuse_1
-    )
-    results$scenarios$s1 <- est
-  })
-  
-  observeEvent(input$calc_scenario_2, {
-    est <- estimate_shiny_cost(
-      code_lines = input$comp_lines_2,
-      complexity = input$comp_complexity_2,
-      team_experience = input$comp_team_2,
-      reuse_factor = input$comp_reuse_2
-    )
-    results$scenarios$s2 <- est
-  })
-  
-  observeEvent(input$calc_scenario_3, {
-    est <- estimate_shiny_cost(
-      code_lines = input$comp_lines_3,
-      complexity = input$comp_complexity_3,
-      team_experience = input$comp_team_3,
-      reuse_factor = input$comp_reuse_3
-    )
-    results$scenarios$s3 <- est
-  })
-  
-  output$comparison_chart <- renderPlotly({
-    scenarios <- results$scenarios
-    if (length(scenarios) == 0) {
-      return(NULL)
-    }
-    
-    comp_data <- data.frame(
-      Scenario = character(),
-      Metric = character(),
-      Value = numeric()
-    )
-    
-    for (i in seq_along(scenarios)) {
-      scenario_name <- paste("Scenario", i)
-      est <- scenarios[[i]]
-      
-      comp_data <- rbind(comp_data, data.frame(
-        Scenario = rep(scenario_name, 3),
-        Metric = c("Cost (USD)", "Schedule (months)", "Team Size"),
-        Value = c(est$estimated_cost_usd, est$schedule_months, est$people_required)
-      ))
-    }
-    
-    plot_ly(comp_data, x = ~Scenario, y = ~Value, color = ~Metric, type = 'bar') %>%
-      layout(title = "Scenario Comparison",
-             yaxis = list(title = "Value"),
-             barmode = 'group')
-  })
-  
-  output$comparison_table <- renderDT({
-    scenarios <- results$scenarios
-    if (length(scenarios) == 0) {
-      return(NULL)
-    }
-    
-    comp_df <- data.frame()
-    for (i in seq_along(scenarios)) {
-      est <- scenarios[[i]]
-      comp_df <- rbind(comp_df, data.frame(
-        Scenario = paste("Scenario", i),
-        CodeLines = format(est$code_lines, big.mark = ","),
-        Cost = paste0("$", format(est$estimated_cost_usd, big.mark = ",")),
-        Schedule = paste0(est$schedule_months, " months"),
-        TeamSize = est$people_required,
-        Effort = paste0(est$effort_person_months, " PM"),
-        Complexity = est$params$complexity,
-        TeamExp = est$params$team_experience
-      ))
-    }
-    
-    datatable(comp_df, options = list(pageLength = 10), rownames = FALSE)
-  })
-  
-  # ============================================================================
-  # EXPORT & SHARE
-  # ============================================================================
-  
-  output$download_pdf <- downloadHandler(
-    filename = function() {
-      paste0("cost_estimate_", format(Sys.Date(), "%Y%m%d"), ".pdf")
-    },
-    content = function(file) {
-      # This would require rmarkdown and pandoc
-      showNotification("PDF generation requires rmarkdown. Coming soon!", 
-                      type = "warning", duration = 5)
-    }
-  )
-  
-  observeEvent(input$generate_url, {
-    # Get current parameters based on selected source
-    source <- input$report_source
-    
-    if (source == "manual" && !is.null(results$manual)) {
-      params <- results$manual$params
-      query_string <- paste0(
-        "?mode=manual",
-        "&r=", input$manual_r,
-        "&py=", input$manual_python,
-        "&js=", input$manual_js,
-        "&sql=", input$manual_sql,
-        "&complexity=", params$complexity,
-        "&team=", params$team_exp,
-        "&reuse=", params$reuse,
-        "&tools=", params$tools
-      )
-      
-      full_url <- paste0(session$clientData$url_hostname, 
-                        session$clientData$url_pathname,
-                        query_string)
-      
-      output$shareable_url_display <- renderUI({
-        tagList(
-          h5("Copy this URL:"),
-          tags$div(
-            class = "alert alert-info",
-            tags$code(full_url),
-            tags$button(
-              class = "btn btn-sm btn-secondary mt-2",
-              onclick = paste0("navigator.clipboard.writeText('", full_url, "')"),
-              "Copy to Clipboard"
-            )
-          )
-        )
-      })
-      
-      showNotification("Shareable URL generated!", type = "message", duration = 3)
-    } else {
-      showNotification("Please complete an analysis first.", type = "warning")
-    }
-  })
-  
-  output$download_csv <- downloadHandler(
-    filename = function() {
-      paste0("cost_estimate_", format(Sys.Date(), "%Y%m%d"), ".csv")
-    },
-    content = function(file) {
-      # Determine which results to export
-      if (!is.null(results$local)) {
-        write.csv(results$local$lang_summary, file, row.names = FALSE)
-      } else if (!is.null(results$zip)) {
-        write.csv(results$zip$lang_summary, file, row.names = FALSE)
-      } else {
-        showNotification("No data to export", type = "warning")
-      }
-    }
-  )
-  
-  output$download_json <- downloadHandler(
-    filename = function() {
-      paste0("cost_estimate_", format(Sys.Date(), "%Y%m%d"), ".json")
-    },
-    content = function(file) {
-      # Export JSON of all results
-      export_data <- list(
-        local = results$local,
-        zip = results$zip,
-        manual = results$manual,
-        scenarios = results$scenarios
-      )
-      jsonlite::write_json(export_data, file, pretty = TRUE)
-    }
-  )
-  
+
+  comparisonServer("compare")
+  exportServer("export", results, list(parent_session = session))
+
   # ============================================================================
   # URL PARAMETER HANDLING (for shareable links)
   # ============================================================================
-  
+
   observe({
     query <- parseQueryString(session$clientData$url_search)
-    
+
     if (!is.null(query$mode) && query$mode == "manual") {
-      # Pre-fill manual entry fields
       if (!is.null(query$r)) updateNumericInput(session, "manual_r", value = as.numeric(query$r))
       if (!is.null(query$py)) updateNumericInput(session, "manual_python", value = as.numeric(query$py))
       if (!is.null(query$js)) updateNumericInput(session, "manual_js", value = as.numeric(query$js))
       if (!is.null(query$sql)) updateNumericInput(session, "manual_sql", value = as.numeric(query$sql))
       if (!is.null(query$complexity)) updateSelectInput(session, "manual_complexity", selected = query$complexity)
       if (!is.null(query$team)) updateSliderInput(session, "manual_team_exp", value = as.numeric(query$team))
-      
-      # Switch to manual tab
-      nav_select("nav", selected = "✏️ Manual Entry")
-      
+
+      nav_select("nav", selected = "Manual Entry")
       showNotification("Pre-filled from shared URL!", type = "message", duration = 5)
     }
   })

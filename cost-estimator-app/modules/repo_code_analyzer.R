@@ -10,6 +10,7 @@
 #' @param tool_support Tool support quality 0.8-1.2 (default: 1.0)
 #' @param max_team_size Maximum team size constraint (default: 5)
 #' @param max_schedule_months Maximum schedule constraint in months (default: 24)
+#' @param progress_callback Optional function(current, total) called per file for progress reporting
 #' @return Data frame with file statistics by language
 analyze_repo_code <- function(
   path = ".",
@@ -19,7 +20,8 @@ analyze_repo_code <- function(
   reuse_factor = 1.0,
   tool_support = 1.0,
   max_team_size = 5,
-  max_schedule_months = 24
+  max_schedule_months = 24,
+  progress_callback = NULL
 ) {
   # Language mappings by file extension
   lang_map <- list(
@@ -53,7 +55,7 @@ analyze_repo_code <- function(
     ".java" = "Java",
     ".sql" = "SQL"
   )
-  
+
   # Comment patterns by language
   comment_patterns <- list(
     "R" = c("^\\s*#"),
@@ -80,7 +82,7 @@ analyze_repo_code <- function(
 
   # Exclude directories we don't want to count
   exclude_patterns <- c(
-    "/\\.git/", "/\\.Rproj\\.user/", "/node_modules/", 
+    "/\\.git/", "/\\.Rproj\\.user/", "/node_modules/",
     "/\\.venv/", "/venv/", "/__pycache__/", "/\\.DS_Store$",
     "/\\.Rhistory$", "/\\.RData$", "/packrat/", "/renv/"
   )
@@ -89,12 +91,50 @@ analyze_repo_code <- function(
     all_files <- all_files[!grepl(pattern, all_files)]
   }
 
+  # Known binary file extensions to skip
+  binary_extensions <- c(
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".tiff", ".webp",
+    ".woff", ".woff2", ".ttf", ".otf", ".eot",
+    ".rds", ".rdata", ".rda", ".rdb", ".rdx",
+    ".pyc", ".so", ".dylib", ".dll", ".o", ".class", ".jar",
+    ".zip", ".tar", ".gz", ".bz2", ".xz", ".7z", ".rar",
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".mp3", ".mp4", ".wav", ".avi", ".mov", ".ogg",
+    ".sqlite", ".db", ".exe", ".bin", ".dat", ".lock"
+  )
+
+  # Check if a file is binary by extension or null bytes in first 8KB
+  is_binary_file <- function(filepath, known_exts) {
+    ext <- tolower(paste0(".", tools::file_ext(filepath)))
+    if (ext %in% known_exts) return(TRUE)
+    tryCatch({
+      raw_bytes <- readBin(filepath, what = "raw", n = 8192)
+      if (length(raw_bytes) == 0) return(FALSE)
+      any(raw_bytes == as.raw(0x00))
+    }, error = function(e) FALSE)
+  }
+
   # Analyze each file
-  results <- lapply(all_files, function(file) {
+  total_files <- length(all_files)
+  results <- vector("list", total_files)
+
+  for (i in seq_along(all_files)) {
+    file <- all_files[[i]]
+
+    # Report progress
+    if (!is.null(progress_callback)) {
+      progress_callback(i, total_files)
+    }
+
+    # Skip binary files
+    if (is_binary_file(file, binary_extensions)) {
+      results[[i]] <- NULL
+      next
+    }
+
     # Get file extension
     ext <- tolower(tools::file_ext(file))
     if (ext == "") {
-      # Check if it's a LICENSE file
       if (grepl("LICENSE|LICENCE", basename(file), ignore.case = TRUE)) {
         ext <- ".LICENSE"
       } else {
@@ -117,26 +157,29 @@ analyze_repo_code <- function(
     )
 
     if (length(lines) == 0) {
-      return(NULL)
+      results[[i]] <- NULL
+      next
     }
-  
+
     # Count lines
     total_lines <- length(lines)
     blank_lines <- sum(grepl("^\\s*$", lines))
-    
-    # Count comments
+
+    # Count comments - single-pass OR to avoid double-counting
     comment_lines <- 0
     patterns <- comment_patterns[[language]]
     if (!is.null(patterns)) {
+      is_comment <- rep(FALSE, length(lines))
       for (pattern in patterns) {
-        comment_lines <- comment_lines + sum(grepl(pattern, lines))
+        is_comment <- is_comment | grepl(pattern, lines)
       }
+      comment_lines <- sum(is_comment)
     }
-    
+
     # Code lines
     code_lines <- total_lines - blank_lines - comment_lines
-    
-    # Rough complexity estimate (count of function/class definitions, loops, conditionals)
+
+    # Rough complexity estimate
     complexity_count <- 0
     if (language == "R") {
       complexity_count <- sum(grepl("function\\s*\\(|for\\s*\\(|while\\s*\\(|if\\s*\\(", lines))
@@ -145,11 +188,11 @@ analyze_repo_code <- function(
     } else if (language == "Python") {
       complexity_count <- sum(grepl("def\\s+|class\\s+|for\\s+|while\\s+|if\\s+", lines))
     }
-    
+
     # Get file size
     file_size <- file.info(file)$size
-    
-    data.frame(
+
+    results[[i]] <- data.frame(
       Language = language,
       File = file,
       Lines = total_lines,
@@ -160,23 +203,23 @@ analyze_repo_code <- function(
       Bytes = file_size,
       stringsAsFactors = FALSE
     )
-  })
-  
+  }
+
   # Combine results
   results <- do.call(rbind, results[!sapply(results, is.null)])
-  
+
   if (is.null(results) || nrow(results) == 0) {
     cat("No files found to analyze.\n")
     return(invisible(NULL))
   }
-  
+
   # Aggregate by language
   lang_summary <- aggregate(
     cbind(Lines, Blanks, Comments, Code, Complexity, Bytes) ~ Language,
     data = results,
     FUN = sum
   )
-  
+
   # Count files per language
   file_counts <- aggregate(
     File ~ Language,
@@ -184,13 +227,13 @@ analyze_repo_code <- function(
     FUN = length
   )
   names(file_counts)[2] <- "Files"
-  
+
   # Merge
   lang_summary <- merge(file_counts, lang_summary, by = "Language")
-  
+
   # Sort by code lines descending
   lang_summary <- lang_summary[order(-lang_summary$Code), ]
-  
+
   # Calculate totals
   totals <- data.frame(
     Language = "Total",
@@ -202,13 +245,13 @@ analyze_repo_code <- function(
     Complexity = sum(lang_summary$Complexity),
     Bytes = sum(lang_summary$Bytes)
   )
-  
+
   # Print report
-  cat("\n───────────────────────────────────────────────────────────────────────────────\n")
-  cat(sprintf("%-20s %9s %9s %9s %9s %9s %10s\n", 
+  cat("\n-----------------------------------------------------------------------\n")
+  cat(sprintf("%-20s %9s %9s %9s %9s %9s %10s\n",
               "Language", "Files", "Lines", "Blanks", "Comments", "Code", "Complexity"))
-  cat("───────────────────────────────────────────────────────────────────────────────\n")
-  
+  cat("-----------------------------------------------------------------------\n")
+
   for (i in 1:nrow(lang_summary)) {
     cat(sprintf("%-20s %9d %9d %9d %9d %9d %10d\n",
                 lang_summary$Language[i],
@@ -219,8 +262,8 @@ analyze_repo_code <- function(
                 lang_summary$Code[i],
                 lang_summary$Complexity[i]))
   }
-  
-  cat("───────────────────────────────────────────────────────────────────────────────\n")
+
+  cat("-----------------------------------------------------------------------\n")
   cat(sprintf("%-20s %9d %9d %9d %9d %9d %10d\n",
               totals$Language,
               totals$Files,
@@ -229,16 +272,18 @@ analyze_repo_code <- function(
               totals$Comments,
               totals$Code,
               totals$Complexity))
-  cat("───────────────────────────────────────────────────────────────────────────────\n")
-  
+  cat("-----------------------------------------------------------------------\n")
+
   # Calculate cost using COCOMO II
-  # Try to find the estimator in common locations
+  # Try to find the estimator in common locations (relative to script)
+  script_dir <- tryCatch(dirname(sys.frame(1)$ofile), error = function(e) "")
+  if (is.null(script_dir)) script_dir <- ""
   estimator_paths <- c(
-    "sandbox/shiny_cost_estimator.R",
-    file.path(path, "sandbox/shiny_cost_estimator.R"),
-    file.path(dirname(path), "sandbox/shiny_cost_estimator.R")
+    file.path(script_dir, "shiny_cost_estimator.R"),
+    "R/shiny_cost_estimator.R",
+    "shiny_cost_estimator.R"
   )
-  
+
   estimator_path <- NULL
   for (p in estimator_paths) {
     if (file.exists(p)) {
@@ -246,132 +291,51 @@ analyze_repo_code <- function(
       break
     }
   }
-  
+
   if (!is.null(estimator_path)) {
     source(estimator_path, local = TRUE)
-    
+
     # Build language mix for productivity weighting
     language_mix <- setNames(lang_summary$Code, lang_summary$Language)
-    
-    # Use total code lines for estimation
+
+    # Use enriched estimate_shiny_cost with constraints built in
     cost_result <- estimate_shiny_cost(
       code_lines = totals$Code,
       complexity = complexity,
       team_experience = team_experience,
       reuse_factor = reuse_factor,
       tool_support = tool_support,
-      language_mix = language_mix
+      language_mix = language_mix,
+      avg_wage = avg_wage,
+      max_team_size = max_team_size,
+      max_schedule_months = max_schedule_months
     )
-    
-    # Adjust cost based on wage
-    monthly_wage <- avg_wage / 12
-    
-    # Apply realistic constraints for small team development
-    original_people <- cost_result$people_required
-    original_schedule <- cost_result$schedule_months
-    original_effort <- cost_result$effort_person_months
-    
-    # Hard constraints: max 8 people, max 24 months
-    max_realistic_people <- 8
-    max_realistic_schedule <- max_schedule_months  # Default 24 months
-    
-    # Calculate what's needed without constraints
-    unconstrained_people <- min(original_people, max_team_size)
-    unconstrained_schedule <- original_effort / unconstrained_people
-    
-    # Apply hard constraints
-    final_people <- min(unconstrained_people, max_realistic_people)
-    natural_schedule <- original_effort / final_people
-    final_schedule <- min(natural_schedule, max_realistic_schedule)
-    
-    # Determine if we need cost adjustments
-    monthly_wage <- avg_wage / 12
-    
-    if (natural_schedule > max_realistic_schedule) {
-      # Schedule is constrained - need aggressive approach
-      # Calculate premium based on how much we're compressing
-      compression_ratio <- natural_schedule / final_schedule
-      
-      # Aggressive premium for compressed timelines
-      if (compression_ratio >= 4) {
-        premium_multiplier <- 2.0  # 100% premium for 4x+ compression
-      } else if (compression_ratio >= 3) {
-        premium_multiplier <- 1.7  # 70% premium for 3x compression
-      } else if (compression_ratio >= 2) {
-        premium_multiplier <- 1.4  # 40% premium for 2x compression
-      } else {
-        premium_multiplier <- 1.2  # 20% premium for mild compression
-      }
-      
-      premium_monthly_wage <- monthly_wage * premium_multiplier
-      final_cost <- original_effort * premium_monthly_wage
-      
-      cat(sprintf("Estimated Cost to Develop (realistic) $%s\n", 
-                  format(round(final_cost), big.mark = ",")))
-      cat(sprintf("Estimated Schedule Effort (realistic) %.1f months (%.1f years)\n", 
-                  final_schedule, final_schedule / 12))
-      cat(sprintf("Estimated People Required (realistic) %.0f people", round(final_people)))
-      
-      if (final_people > 5) {
-        cat(sprintf(" (%.0f core + %.0f contractors)\n", 5, round(final_people - 5)))
-      } else {
-        cat("\n")
-      }
-      
-      cat("\nRealistic Project Breakdown:\n")
-      cat(sprintf("  • Total effort required: %.0f person-months\n", original_effort))
-      cat(sprintf("  • Team size: %.0f people (max allowed: %d)\n", round(final_people), max_realistic_people))
-      cat(sprintf("  • Timeline: %.1f months (max allowed: %d months)\n", 
-                  final_schedule, max_realistic_schedule))
-      cat(sprintf("  • Cost premium: +%.0f%% for aggressive timeline\n",
-                  (premium_multiplier - 1.0) * 100))
-      cat(sprintf("  • Premium covers: Senior/expert engineers, overtime, consultants, accelerated tooling\n"))
-      cat(sprintf("  • Average monthly cost: $%s/month\n", 
-                  format(round(final_cost / final_schedule), big.mark = ",")))
-      
-      # Show what unconstrained would look like
-      if (natural_schedule > max_realistic_schedule * 1.5) {
-        base_cost <- original_effort * monthly_wage
-        cat(sprintf("\n  Note: Without timeline constraints:\n"))
-        cat(sprintf("    • Natural timeline would be: %.1f months (%.1f years)\n", 
-                    natural_schedule, natural_schedule / 12))
-        cat(sprintf("    • Base cost (no premium): $%s\n",
-                    format(round(base_cost), big.mark = ",")))
-        cat(sprintf("    • Compression ratio: %.1fx faster delivery\n", compression_ratio))
-      }
 
-    } else {
-      # Schedule fits within constraints
-      adjusted_cost <- original_effort * monthly_wage
+    cat(sprintf("Estimated Cost to Develop (realistic) $%s\n",
+                format(cost_result$realistic_cost_usd, big.mark = ",")))
+    cat(sprintf("Estimated Schedule Effort (realistic) %.1f months (%.1f years)\n",
+                cost_result$final_schedule_months, cost_result$final_schedule_months / 12))
+    cat(sprintf("Estimated People Required (realistic) %.0f people\n", cost_result$final_people))
 
-      # Apply mild premium if using large team (6-8 people need coordination)
-      if (final_people >= 6) {
-        coordination_premium <- 1.1  # 10% premium for coordination overhead
-        adjusted_cost <- adjusted_cost * coordination_premium
-      } else {
-        coordination_premium <- 1.0
-      }
+    cat("\nRealistic Project Breakdown:\n")
+    cat(sprintf("  Total effort required: %.0f person-months\n", cost_result$effort_person_months))
+    cat(sprintf("  Team size: %.0f people\n", cost_result$final_people))
+    cat(sprintf("  Timeline: %.1f months\n", cost_result$final_schedule_months))
 
-      cat(sprintf("Estimated Cost to Develop (realistic) $%s\n", 
-                  format(round(adjusted_cost), big.mark = ",")))
-      cat(sprintf("Estimated Schedule Effort (realistic) %.1f months (%.1f years)\n", 
-                  final_schedule, final_schedule / 12))
-      cat(sprintf("Estimated People Required (realistic) %.0f people\n", round(final_people)))
-
-      cat("\nRealistic Project Breakdown:\n")
-      cat(sprintf("  • Total effort required: %.0f person-months\n", original_effort))
-      cat(sprintf("  • Team size: %.0f people\n", round(final_people)))
-      cat(sprintf("  • Timeline: %.1f months (%.1f years)\n", 
-                  final_schedule, final_schedule / 12))
-
-      if (coordination_premium > 1.0) {
-        cat(sprintf("  • Coordination overhead: +%.0f%% for team size\n",
-                    (coordination_premium - 1.0) * 100))
-      }
-
-      cat(sprintf("  • Average monthly cost: $%s/month\n", 
-                  format(round(adjusted_cost / final_schedule), big.mark = ",")))
+    if (cost_result$premium_multiplier > 1.0) {
+      cat(sprintf("  Cost premium: +%.0f%% for aggressive timeline\n",
+                  (cost_result$premium_multiplier - 1.0) * 100))
     }
+    if (cost_result$coordination_premium > 1.0) {
+      cat(sprintf("  Coordination overhead: +%.0f%% for team size\n",
+                  (cost_result$coordination_premium - 1.0) * 100))
+    }
+    cat(sprintf("  Average monthly cost: $%s/month\n",
+                format(cost_result$average_monthly_cost, big.mark = ",")))
+    cat(sprintf("  Confidence range: $%s - $%s\n",
+                format(cost_result$confidence_interval$low, big.mark = ","),
+                format(cost_result$confidence_interval$high, big.mark = ",")))
+
   } else {
     # Fallback: use basic COCOMO formula
     KLOC <- totals$Code / 1000
@@ -380,17 +344,17 @@ analyze_repo_code <- function(
     people <- effort / schedule
     cost <- effort * (avg_wage / 12)
 
-    cat(sprintf("Estimated Cost to Develop (organic) $%s\n", 
+    cat(sprintf("Estimated Cost to Develop (organic) $%s\n",
                 format(round(cost), big.mark = ",")))
     cat(sprintf("Estimated Schedule Effort (organic) %.2f months\n", schedule))
     cat(sprintf("Estimated People Required (organic) %.2f\n", people))
   }
 
-  cat("───────────────────────────────────────────────────────────────────────────────\n")
-  cat(sprintf("Processed %s bytes, %.3f megabytes (SI)\n", 
+  cat("-----------------------------------------------------------------------\n")
+  cat(sprintf("Processed %s bytes, %.3f megabytes (SI)\n",
               format(totals$Bytes, big.mark = ","),
               totals$Bytes / 1000000))
-  cat("───────────────────────────────────────────────────────────────────────────────\n\n")
+  cat("-----------------------------------------------------------------------\n\n")
 
   invisible(lang_summary)
 }
