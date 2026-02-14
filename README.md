@@ -1,950 +1,358 @@
-<div align="center">
+# Shiny App Valuation Toolkit
 
-# 💰 Shiny App Valuation Toolkit
+COCOMO II-based cost estimation for R Shiny and data science projects. Estimates development effort, schedule, team size, budget, maintenance costs, and Total Cost of Ownership (TCO) from code line counts and project parameters.
 
-**COCOMO II-Based Cost Estimation for R Shiny & Data Science Projects**
+## Overview
 
-*Quantify Development Effort, Schedule, and Budget for Your Analytics Applications*
+Three interfaces, one estimation engine:
 
-[![R](https://img.shields.io/badge/R-%3E%3D4.0-brightgreen.svg)](https://www.r-project.org/)
-[![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
-[![COCOMO II](https://img.shields.io/badge/Model-COCOMO%20II-orange.svg)](http://csse.usc.edu/csse/research/COCOMOII/cocomo_main.html)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+- **Shiny Web App** - Interactive dashboard with visualizations, AI assistant, scenario comparison, and export
+- **R CLI** - `analyze_repo_code()` scans a repository and prints an scc-style report with cost estimate
+- **Python CLI** - `repo_code_analyzer.py` with `analyze` and `estimate` subcommands, plus CSV/HTML/TXT export
 
-</div>
+## Quick Start
 
----
+### Shiny App (recommended)
 
-## 📋 Table of Contents
+```bash
+# Install dependencies
+Rscript cost-estimator-app/check_dependencies.R
 
-- [Overview](#-overview)
-- [Key Features](#-key-features)
-- [Quick Start](#-quick-start)
-- [Tools Available](#-tools-available)
-- [Architecture](#-architecture)
-- [Usage Examples](#-usage-examples)
-- [Real-World Results](#-real-world-results)
-- [Installation](#-installation)
-- [Advanced Configuration](#-advanced-configuration)
-- [Contributing](#-contributing)
-
----
-
-## 🎯 Overview
-
-The **Shiny App Valuation Toolkit** provides sophisticated cost estimation tools for R Shiny applications and data science projects using the industry-standard **COCOMO II** (Constructive Cost Model) methodology. Whether you're planning a new project, justifying budget requests, or conducting post-mortem analysis, these tools deliver accurate, data-driven estimates.
-
-### Why This Toolkit?
-
-- **📊 Data-Driven Decisions**: Replace gut feelings with quantitative estimates based on proven software engineering models
-- **💵 Budget Justification**: Generate credible cost projections for stakeholders and finance teams
-- **⏱️ Realistic Scheduling**: Avoid overpromising with schedule estimates that account for team size and complexity
-- **🔍 Portfolio Analysis**: Quickly assess the investment required across multiple analytics projects
-- **🎯 Post-Mortem Insights**: Analyze completed projects to improve future estimates
-- **🌐 Language Flexibility**: Use R or Python based on your team's preferences
-
-### What Problems Does It Solve?
-
-1. **"How much will this Shiny app cost to build?"** → Get multi-dimensional estimates (effort, schedule, team size, budget)
-2. **"Should we build or buy?"** → Quantify development costs to inform build vs. buy decisions
-3. **"How long will this take?"** → Realistic schedule projections accounting for team size constraints
-4. **"What's our codebase worth?"** → Assess the replacement value of existing applications
-5. **"Can we deliver in 6 months?"** → Understand team size and cost implications of aggressive timelines
-
----
-
-## ✨ Key Features
-
-### 🚀 Core Capabilities
-
-- **COCOMO II-Based Estimation**: Industry-standard parametric cost model adapted for modern frameworks
-- **Language-Aware Analysis**: Accounts for productivity differences across R, Python, JavaScript, SQL, CSS, etc.
-- **Realistic Constraints**: Applies practical limits on team size (max 8 people) and schedule (max 24 months by default)
-- **Premium Calculation**: Automatically factors in costs for compressed timelines requiring senior talent
-- **Multi-Language Support**: Analyze mixed-technology stacks (R + Python + JavaScript + SQL)
-- **Automated Code Analysis**: Recursively scans repositories to count lines, complexity, and comments
-
-### 📈 Advanced Features
-
-- **Hybrid Language Weighting**: Adjusts effort based on language productivity (SQL is faster than JavaScript)
-- **Complexity Scaling**: Three complexity levels (low/medium/high) impact schedule and effort exponentially
-- **Team Experience Multipliers**: Accounts for novice (1) to expert (5) team capabilities
-- **Reuse Factor Adjustment**: Reflects code reuse (0.7) vs. greenfield development (1.3)
-- **Tool Support Quality**: Models impact of excellent (0.8) to poor (1.2) development tooling
-- **Modern Framework Bonus**: 15% effort reduction for Shiny, Databricks, and modern frameworks
-- **Coordination Premiums**: Adds costs for larger teams requiring coordination overhead
-
-### 📊 Output Formats
-
-- **Console Reports**: scc-style formatted tables for immediate review
-- **CSV Export**: Machine-readable data for spreadsheet analysis
-- **HTML Reports**: Shareable web-based summaries with charts
-- **Text Files**: Plain-text archives for documentation
-
----
-
-## 🚀 Quick Start
-
-### 🌟 NEW: Interactive Web App (Recommended!)
-
-**The easiest way to use the toolkit - no coding required!**
-
-```r
-# Launch the interactive Shiny app
-shiny::runApp("cost-estimator-app")
-
-# Or use the quick launcher
+# Launch
 Rscript cost-estimator-app/run_app.R
 ```
 
-**Features:**
-- 📁 **Local Folder Browser** - Point and click analysis
-- 📦 **ZIP Upload** - Drag and drop repository archives
-- ✏️ **Manual Entry** - Quick estimates without code
-- 📊 **Interactive Charts** - Language breakdown, cost visualizations
-- ⚖️ **Scenario Comparison** - Compare multiple configurations
-- 📄 **Export Reports** - PDF, CSV, JSON downloads
-- 🔗 **Shareable URLs** - Send pre-filled configurations to colleagues
-
-**[See full app documentation →](cost-estimator-app/README.md)**
-
----
-
-### For R Users (Command Line)
+### R Command Line
 
 ```r
-# 1. Load the analyzer
 source("R/repo_code_analyzer.R")
-
-# 2. Analyze your repository
-analyze_repo_code(
-  path = ".",
-  avg_wage = 105000,
-  complexity = "medium",
-  team_experience = 4
-)
+analyze_repo_code(".", avg_wage = 105000, complexity = "medium", team_experience = 4)
 ```
 
-**Output in 5 seconds:**
-```
-Language              Files     Lines    Blanks  Comments      Code Complexity
-───────────────────────────────────────────────────────────────────────────────
-R                        15     12500      1800      2200      8500       450
-JavaScript                8      3200       450       380      2370       180
-CSS                       3       980       120        50       810        10
-───────────────────────────────────────────────────────────────────────────────
-Total                    26     16680      2370      2630     11680       640
-───────────────────────────────────────────────────────────────────────────────
-
-Estimated Cost to Develop (realistic): $156,000
-Estimated Schedule Effort (realistic): 15.2 months (1.3 years)
-Estimated People Required (realistic): 3 people
-```
-
-### For Python Users (Command Line)
+### Python Command Line
 
 ```bash
-# 1. Analyze your repository
-python3 Python/repo_code_analyzer.py analyze . \
-  --avg-wage 105000 \
-  --complexity medium \
-  --team-exp 4
+# Analyze a repository
+python3 Python/repo_code_analyzer.py analyze . --avg-wage 105000 --complexity medium
 
-# 2. Export to multiple formats
-python3 Python/repo_code_analyzer.py analyze . \
-  --out reports/my_project \
-  --formats csv html txt
+# Direct estimate from line count
+python3 Python/repo_code_analyzer.py estimate --lines 10000 --complexity medium --team-exp 4
+
+# With maintenance projection
+python3 Python/repo_code_analyzer.py estimate --lines 10000 --maintenance-years 3
 ```
 
-### For Cost Estimation Only
+## Architecture
 
-```r
-# Already know your code lines? Get instant estimates
-source("R/shiny_cost_estimator.R")
-
-result <- estimate_shiny_cost(
-  code_lines = 11680,
-  complexity = "medium",
-  team_experience = 4,
-  reuse_factor = 0.9,
-  tool_support = 0.9
-)
-
-print_shiny_cost_report(result)
-```
-
----
-
-## 🛠️ Tools Available
-
-### 1. Repository Code Analyzer (R)
-**File**: [R/repo_code_analyzer.R](R/repo_code_analyzer.R)
-
-**Purpose**: Comprehensive repository analysis with integrated cost estimation
-
-**Key Functions**:
-- `analyze_repo_code(path, avg_wage, complexity, team_experience, reuse_factor, tool_support, max_team_size, max_schedule_months)`
-
-**Features**:
-- Recursive directory scanning with smart exclusions (.git, node_modules, etc.)
-- Language detection for 20+ file types
-- Comment and blank line filtering
-- Complexity analysis (functions, loops, conditionals)
-- Automatic integration with COCOMO II estimator
-- Realistic constraint modeling (team size, schedule limits)
-- Premium calculations for compressed timelines
-
-**Best For**:
-- Full repository analysis
-- Portfolio assessments
-## 🛠️ Tools Available
-
-### 🌟 1. Interactive Web App (NEW - Recommended!)
-**Location**: [cost-estimator-app/](cost-estimator-app/)
-
-**Purpose**: User-friendly web interface with three analysis modes and interactive visualizations
-
-**Three Input Modes**:
-1. **📁 Local Folder** - Browse and analyze directories on your computer
-2. **📦 ZIP Upload** - Drag-and-drop repository archives (works on deployed servers)
-3. **✏️ Manual Entry** - Quick estimates by entering code lines per language
-
-**Interactive Features**:
-- 📊 **Real-time visualizations** - Pie charts, bar charts, sensitivity analysis
-- 💰 **Cost breakdowns** - See how parameters affect total cost
-- ⚖️ **Scenario comparison** - Compare up to 3 configurations side-by-side
-- 📈 **Sensitivity analysis** - Interactive sliders to explore "what-if" scenarios
-- 📄 **Export options** - PDF reports, CSV data, JSON exports
-- 🔗 **Shareable URLs** - Generate links with pre-filled parameters
-
-**Quick Start**:
-```r
-# Launch locally
-shiny::runApp("cost-estimator-app")
-
-# Or use the launcher script
-Rscript cost-estimator-app/run_app.R
-
-# Check dependencies
-source("cost-estimator-app/check_dependencies.R")
-```
-
-**Deployment**:
-- Deploy to shinyapps.io (free hosting)
-- RStudio Connect (enterprise)
-- Shiny Server (open source)
-- Docker container
-
-**Full Documentation**: [cost-estimator-app/README.md](cost-estimator-app/README.md)
-
-**Best For**:
-- Non-technical stakeholders
-- Interactive exploration
-- Client presentations
-- Team collaboration
-- Quick what-if analysis
-
----
-
-### 2. Repository Code Analyzer (R)
-**File**: [R/repo_code_analyzer.R](R/repo_code_analyzer.R)
-
-**Purpose**: Comprehensive repository analysis with integrated cost estimation
-
-**Key Functions**:
-- `analyze_repo_code(path, avg_wage, complexity, team_experience, reuse_factor, tool_support, max_team_size, max_schedule_months)`
-
-**Features**:
-- Recursive directory scanning with smart exclusions (.git, node_modules, etc.)
-- Language detection for 20+ file types
-- Comment and blank line filtering
-- Complexity analysis (functions, loops, conditionals)
-- Automatic integration with COCOMO II estimator
-- Realistic constraint modeling (team size, schedule limits)
-- Premium calculations for compressed timelines
-
-**Best For**:
-- Full repository analysis
-- Portfolio assessments
-- Pre-development scoping
-- Post-mortem analysis
-
----
-
-### 3. Shiny Cost Estimator (R)
-**File**: [R/shiny_cost_estimator.R](R/shiny_cost_estimator.R)
-
-**Purpose**: Standalone COCOMO II cost model for quick estimates
-
-**Key Functions**:
-- `estimate_shiny_cost(code_lines, complexity, team_experience, reuse_factor, tool_support, language_mix)`
-- `print_shiny_cost_report(result)`
-
-**Features**:
-- COCOMO II parametric model (A=2.50, B=1.02-1.18)
-- Language-specific productivity weighting
-- Modern framework adjustment (-15% effort)
-- Team experience multipliers (1.15x novice to 0.95x expert)
-- Detailed breakdown reports
-
-**Best For**:
-- Quick estimates from code line counts
-- Comparative analysis across scenarios
-- Budget planning presentations
-- Sensitivity analysis
-
----
-
-### 4. Repository Code Analyzer (Python)
-**File**: [Python/repo_code_analyzer.py](Python/repo_code_analyzer.py)
-
-**Purpose**: Python equivalent with CLI interface and export options
-
-**Commands**:
-```bash
-# Analyze repository
-python3 Python/repo_code_analyzer.py analyze [PATH] [OPTIONS]
-
-# Direct estimation
-python3 Python/repo_code_analyzer.py estimate --lines N [OPTIONS]
-```
-
-**Options**:
-- `--avg-wage`: Average annual salary (default: 105000)
-- `--complexity`: low, medium, or high (default: medium)
-- `--team-exp`: Experience level 1-5 (default: 4)
-- `--reuse`: Reuse factor 0.7-1.3 (default: 1.0)
-- `--tools`: Tool quality 0.8-1.2 (default: 1.0)
-- `--out`: Export base path (without extension)
-- `--formats`: Export formats (csv, html, txt)
-
-**Best For**:
-- Python-centric workflows
-- CI/CD integration
-- Batch processing multiple repositories
-- Automated reporting
-
----
-
-## 🏗️ Architecture
-
-### System Design
+### High-Level System Architecture
 
 ```mermaid
 graph TB
-    A[User Input] --> B{Tool Choice}
-    B -->|R Analysis| C[repo_code_analyzer.R]
-    B -->|Python Analysis| D[repo_code_analyzer.py]
-    B -->|Quick Estimate| E[shiny_cost_estimator.R]
-    
-    C --> F[File Scanner]
-    D --> F
-    
-    F --> G[Language Detector]
-    G --> H[Line Counter]
-    H --> I[Complexity Analyzer]
-    
-    I --> J[COCOMO II Engine]
-    E --> J
-    
-    J --> K[Effort Calculation]
-    K --> L[Schedule Estimation]
-    L --> M[Team Size Calculation]
-    M --> N[Cost Projection]
-    
-    N --> O[Constraint Application]
-    O --> P[Premium Adjustment]
-    
-    P --> Q{Output Format}
-    Q -->|Console| R[scc-style Report]
-    Q -->|CSV| S[Spreadsheet Export]
-    Q -->|HTML| T[Web Report]
-    Q -->|TXT| U[Text Archive]
-    
-    style J fill:#f9f,stroke:#333,stroke-width:4px
-    style O fill:#bbf,stroke:#333,stroke-width:2px
-    style P fill:#fbb,stroke:#333,stroke-width:2px
+    subgraph Interfaces
+        APP["Shiny Web App<br/><i>cost-estimator-app/app.R</i>"]
+        RCLI["R CLI<br/><i>R/repo_code_analyzer.R</i>"]
+        PYCLI["Python CLI<br/><i>Python/repo_code_analyzer.py</i>"]
+    end
+
+    subgraph Core["Core Estimation Engine"]
+        EST["estimate_shiny_cost()<br/><i>R/shiny_cost_estimator.R</i>"]
+        SCAN["analyze_repo_code()<br/><i>R/repo_code_analyzer.R</i>"]
+    end
+
+    subgraph Model["COCOMO II Model"]
+        FORMULA["effort = A × KLOC^B × EM_total"]
+        SCHED["schedule = C × effort^D"]
+        CONST["Constraints & Premiums"]
+    end
+
+    APP --> SCAN
+    APP --> EST
+    RCLI --> SCAN
+    SCAN --> EST
+    PYCLI -.->|"Python reimplementation"| EST
+
+    EST --> FORMULA
+    EST --> SCHED
+    EST --> CONST
+```
+
+### Shiny App Module Architecture
+
+```mermaid
+graph LR
+    subgraph app.R["app.R — Main App"]
+        NAV["Navbar<br/>6 tabs"]
+        PARAMS["Parameter<br/>Reactives"]
+        NAV --> HOME["Home"]
+        NAV --> LOCAL["Local Folder"]
+        NAV --> ZIP["ZIP Upload"]
+        NAV --> MANUAL["Manual Entry"]
+        NAV --> COMP["Compare"]
+        NAV --> EXP["Export"]
+    end
+
+    subgraph Modules
+        AM["analysis_module.R<br/><i>analysisResultsUI/Server</i>"]
+        CM["comparison_module.R<br/><i>comparisonUI/Server</i>"]
+        EM["export_module.R<br/><i>exportUI/Server</i>"]
+    end
+
+    LOCAL --> AM
+    ZIP --> AM
+    MANUAL --> AM
+    COMP --> CM
+    EXP --> EM
+    PARAMS --> AM
+```
+
+### Analysis Module Sub-tabs
+
+Each analysis tab (Local Folder, ZIP Upload, Manual Entry) shares the same analysis module with five sub-tabs:
+
+```mermaid
+graph TB
+    AM["Analysis Module<br/><i>analysisResultsUI/Server</i>"]
+
+    AM --> R["Results<br/>Value boxes + waterfall chart<br/>+ language pie chart"]
+    AM --> D["Details<br/>Language breakdown table<br/>+ estimate report"]
+    AM --> S["Sensitivity<br/>Interactive parameter<br/>impact chart"]
+    AM --> M["Maintenance & TCO<br/>Year-by-year costs<br/>+ TCO projection"]
+    AM --> AI["AI Assistant<br/>Context-aware chatbot<br/><i>optional</i>"]
+
+    style AI stroke-dasharray: 5 5
+```
+
+### COCOMO II Estimation Pipeline
+
+```mermaid
+flowchart LR
+    A["Source Code<br/><i>or manual line counts</i>"] --> B["Language<br/>Detection &<br/>Line Counting"]
+    B --> C["Productivity<br/>Weighting<br/><i>SQL 1.3×, JS 0.9×</i>"]
+    C --> D["COCOMO II<br/>Effort Calc<br/><i>A × KLOC^B × EM</i>"]
+    D --> E["Schedule &<br/>Team Sizing"]
+    E --> F["Constraint<br/>Application<br/><i>caps, premiums</i>"]
+    F --> G["Cost<br/>Estimate<br/><i>+ confidence ±30%</i>"]
+    G --> H["Maintenance<br/>& TCO<br/><i>compounded 5%/yr</i>"]
 ```
 
 ### Data Flow
 
-1. **Input Collection**: Repository path or code line count
-2. **File Discovery**: Recursive scan with exclusion filters
-3. **Language Detection**: Extension-based mapping to 20+ languages
-4. **Metrics Calculation**: Lines, blanks, comments, code, complexity
-5. **Language Weighting**: Productivity adjustment by language
-6. **COCOMO II Model**: Parametric effort calculation
-7. **Schedule Derivation**: Power-law relationship from effort
-8. **Team Sizing**: Effort ÷ schedule
-9. **Constraint Logic**: Apply max team (8) and schedule (24 months)
-10. **Premium Calculation**: Adjust for compressed timelines
-11. **Report Generation**: Format and output results
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant App as app.R
+    participant Mod as analysis_module
+    participant Est as estimate_shiny_cost()
 
-### Key Algorithms
+    U->>App: Analyze repo / Enter lines
+    App->>App: Build params reactive
+    App->>Mod: analysisResultsServer(data, params)
+    Mod->>Est: estimate_shiny_cost(lines, params)
+    Est-->>Mod: Result list (cost, schedule, team, CI, maintenance)
+    Mod-->>App: Render value boxes, charts, tables
+    App-->>U: Display results in sub-tabs
 
-#### COCOMO II Effort Formula
-```
-Effort (person-months) = A × (KLOC^B) × EM_total
-
-Where:
-  A = 2.50 (base calibration, reduced for modern tools)
-  B = complexity exponent (1.02-1.18)
-  KLOC = Thousands of Lines of Code (language-weighted)
-  EM_total = Product of effort multipliers
+    opt AI Assistant enabled
+        U->>Mod: Ask question in AI chat
+        Mod->>Mod: Build context from est() reactive
+        Mod-->>U: Stream response via ellmer + shinychat
+    end
 ```
 
-#### Effort Multipliers
-```
-EM_experience = 1.2 - 0.05 × team_experience
-EM_reuse = reuse_factor (0.7-1.3)
-EM_tools = tool_support (0.8-1.2)
-EM_modern = 0.85 (modern frameworks bonus)
+## How It Works
 
-EM_total = EM_experience × EM_reuse × EM_tools × EM_modern
-```
-
-#### Schedule Formula
-```
-Schedule (months) = C × (Effort^D)
-
-Where:
-  C = 3.50 (reduced for agile/iterative cycles)
-  D = 0.28 + 0.2 × (B - 1.01)
-```
-
-#### Realistic Constraints
-```
-1. Calculate unconstrained team size (up to user max)
-2. Apply hard limit (8 people)
-3. Recalculate schedule = effort ÷ team_size
-4. Apply schedule limit (24 months default)
-5. If compressed → calculate premium multiplier
-6. Adjust cost with premium
-```
-
----
-
-## 📚 Usage Examples
-
-### Example 1: Simple Repository Analysis
-
-```r
-source("R/repo_code_analyzer.R")
-
-# Analyze with defaults (medium complexity, experienced team)
-analyze_repo_code("~/projects/my-shiny-app")
-```
-
-**Sample Output**:
-```
-───────────────────────────────────────────────────────────────────────────────
-Language              Files     Lines    Blanks  Comments      Code Complexity
-───────────────────────────────────────────────────────────────────────────────
-R                         8      5200       680       820      3700       210
-JavaScript                3      1800       240       180      1380        95
-CSS                       2       650        80        30       540         5
-Markdown                  4       420        60         0       360         0
-YAML                      2       180        25         5       150         0
-───────────────────────────────────────────────────────────────────────────────
-Total                    19      8250      1085      1035      6130       310
-───────────────────────────────────────────────────────────────────────────────
-
-Estimated Cost to Develop (realistic): $89,000
-Estimated Schedule Effort (realistic): 10.2 months (0.8 years)
-Estimated People Required (realistic): 2 people
-
-Realistic Project Breakdown:
-  • Total effort required: 21 person-months
-  • Team size: 2 people (max allowed: 8)
-  • Timeline: 10.2 months (max allowed: 24 months)
-  • Average monthly cost: $8,725/month
-```
-
----
-
-### Example 2: High-Complexity Project with Constraints
-
-```r
-# Complex enterprise app with junior team
-analyze_repo_code(
-  path = "~/projects/enterprise-dashboard",
-  avg_wage = 120000,
-  complexity = "high",
-  team_experience = 2,        # Junior team
-  reuse_factor = 1.2,         # Little reuse
-  tool_support = 1.1,         # Average tooling
-  max_team_size = 4,          # Small team constraint
-  max_schedule_months = 12    # Aggressive deadline
-)
-```
-
-**Sample Output**:
-```
-───────────────────────────────────────────────────────────────────────────────
-Total                    45     22500      3200      4100     15200       980
-───────────────────────────────────────────────────────────────────────────────
-
-Estimated Cost to Develop (realistic): $385,000
-Estimated Schedule Effort (realistic): 12.0 months (1.0 years)
-Estimated People Required (realistic): 4 people
-
-Realistic Project Breakdown:
-  • Total effort required: 55 person-months
-  • Team size: 4 people (max allowed: 8)
-  • Timeline: 12.0 months (max allowed: 12 months)
-  • Cost premium: +40% for aggressive timeline
-  • Premium covers: Senior/expert engineers, overtime, consultants, accelerated tooling
-  • Average monthly cost: $32,083/month
-```
-
----
-
-### Example 3: Python CLI with Multiple Outputs
-
-```bash
-# Analyze and export to all formats
-python3 Python/repo_code_analyzer.py analyze ~/projects/analytics-platform \
-  --avg-wage 110000 \
-  --complexity high \
-  --team-exp 4 \
-  --reuse 0.85 \
-  --tools 0.9 \
-  --out reports/analytics_valuation \
-  --formats csv html txt
-
-# Creates:
-#   reports/analytics_valuation.csv
-#   reports/analytics_valuation.html
-#   reports/analytics_valuation.txt
-```
-
----
-
-### Example 4: Comparative Analysis
-
-```r
-source("R/shiny_cost_estimator.R")
-
-# Scenario 1: Experienced team, good reuse
-scenario1 <- estimate_shiny_cost(
-  code_lines = 8500,
-  complexity = "medium",
-  team_experience = 5,
-  reuse_factor = 0.8,
-  tool_support = 0.85
-)
-
-# Scenario 2: Junior team, greenfield
-scenario2 <- estimate_shiny_cost(
-  code_lines = 8500,
-  complexity = "medium",
-  team_experience = 2,
-  reuse_factor = 1.2,
-  tool_support = 1.1
-)
-
-print("Experienced Team with Reuse:")
-print_shiny_cost_report(scenario1)
-
-print("Junior Team Greenfield:")
-print_shiny_cost_report(scenario2)
-
-# Compare
-cat(sprintf("Cost Difference: $%s (%.0f%% increase)\n",
-            format(scenario2$estimated_cost_usd - scenario1$estimated_cost_usd, big.mark=","),
-            100 * (scenario2$estimated_cost_usd / scenario1$estimated_cost_usd - 1)))
-```
-
-**Sample Output**:
-```
-Experienced Team with Reuse:
-Estimated Cost (USD): $95,000
-Schedule: 10.5 months
-People: 2.3
-
-Junior Team Greenfield:
-Estimated Cost (USD): $168,000
-Schedule: 12.8 months
-People: 3.1
-
-Cost Difference: $73,000 (77% increase)
-```
-
----
-
-### Example 5: Language Mix Analysis
-
-```r
-# Analyze a polyglot project
-language_mix <- list(
-  "R" = 5000,
-  "Python" = 3000,
-  "JavaScript" = 2500,
-  "SQL" = 1200,
-  "CSS" = 800
-)
-
-result <- estimate_shiny_cost(
-  code_lines = sum(unlist(language_mix)),
-  complexity = "medium",
-  team_experience = 4,
-  language_mix = language_mix
-)
-
-print_shiny_cost_report(result)
-```
-
----
-
-## 💡 Real-World Results
-
-### Success Stories
-
-#### Case Study 1: Enterprise Analytics Platform
-**Project**: {AMIRA} Manufacturing Analytics (featured in README_test.md)
-
-**Metrics**:
-- **35,000+ lines of code** (R, JavaScript, Python, CSS, SQL)
-- **Complexity**: High (AI integration, real-time data, multi-module)
-- **Team**: 3 senior data scientists + 1 software engineer
-- **Timeline**: 18 months (phased release)
-
-**Estimated vs. Actual**:
-```
-Metric                  Estimated       Actual        Variance
-─────────────────────────────────────────────────────────────
-Cost                    $420,000        $455,000      +8%
-Schedule                17.5 months     18.0 months   +3%
-Team Size               3.8 people      4.0 people    +5%
-```
-
-**Key Insights**:
-- Estimation accuracy within 10% despite high complexity
-- Premium multiplier correctly predicted need for senior talent
-- Language weighting accounted for JavaScript complexity
-
-**Proven Impact**:
-- **59% deviation reduction** in manufacturing processes
-- **$150K+ annual savings** from process optimization
-- **70% token efficiency** in AI operations
-
----
-
-#### Case Study 2: Clinical Trial Dashboard
-**Project**: Multi-site clinical data visualization
-
-**Metrics**:
-- **8,200 lines of code** (primarily R/Shiny)
-- **Complexity**: Medium
-- **Team**: 2 data scientists
-- **Timeline**: 9 months
-
-**Estimated vs. Actual**:
-```
-Metric                  Estimated       Actual        Variance
-─────────────────────────────────────────────────────────────
-Cost                    $118,000        $112,000      -5%
-Schedule                10.3 months     9.0 months    -13%
-Team Size               2.5 people      2.0 people    -20%
-```
-
-**Key Insights**:
-- High reuse factor (0.75) from internal package library
-- Excellent tooling (0.85) accelerated development
-- Conservative estimate led to ahead-of-schedule delivery
-
----
-
-#### Case Study 3: Portfolio Assessment
-**Organization**: Pharma Analytics Group
-
-**Challenge**: Quantify replacement value of 12 legacy Shiny applications
-
-**Approach**:
-```r
-# Batch analysis of all apps
-apps <- c("app1", "app2", ..., "app12")
-results <- lapply(apps, function(app) {
-  analyze_repo_code(app, avg_wage = 105000, complexity = "medium")
-})
-
-total_value <- sum(sapply(results, function(r) r$estimated_cost_usd))
-```
-
-**Results**:
-- **Total portfolio value**: $1.8M replacement cost
-- **Average per app**: $150K
-- **Range**: $45K (simple) to $420K (complex)
-
-**Business Impact**:
-- Justified $300K modernization budget (vs. $1.8M rebuild)
-- Prioritized 3 highest-value apps for refactoring
-- Informed build-vs-buy decisions for new capabilities
-
----
-
-## 📦 Installation
-
-### Prerequisites
-
-**For R Users**:
-- R ≥ 4.0
-- No additional packages required (base R only)
-
-**For Python Users**:
-- Python ≥ 3.7
-- No additional packages required (standard library only)
-
-### Setup
-
-```bash
-# Clone repository
-git clone https://github.com/yourusername/shiny-app-valuation.git
-cd shiny-app-valuation
-
-# For R: Source files as needed
-# For Python: Run directly (no installation required)
-```
-
-### Verify Installation
-
-**R**:
-```r
-source("R/repo_code_analyzer.R")
-source("R/shiny_cost_estimator.R")
-
-# Test with minimal example
-result <- estimate_shiny_cost(1000, complexity = "low")
-print_shiny_cost_report(result)
-```
-
-**Python**:
-```bash
-python3 Python/repo_code_analyzer.py estimate --lines 1000 --complexity low
-```
-
----
-
-## ⚙️ Advanced Configuration
-
-### Parameter Tuning Guide
-
-#### 1. Complexity Level
-**Choose based on architectural characteristics:**
-
-- **Low** (B=1.02): Simple apps, single module, basic CRUD, < 5K lines
-- **Medium** (B=1.10): Multi-module, moderate integration, 5-20K lines
-- **High** (B=1.18): Complex architecture, AI/ML, real-time, > 20K lines
-
-#### 2. Team Experience
-**Rate your team's average capability (1-5):**
+The COCOMO II parametric model:
 
 ```
-1 = Novice     (EM=1.15, +15% effort)
-2 = Beginner   (EM=1.10, +10% effort)
-3 = Competent  (EM=1.05, +5% effort)
-4 = Proficient (EM=1.00, baseline)
-5 = Expert     (EM=0.95, -5% effort)
+Effort (person-months) = A × KLOC^B × EM_total
+
+A     = 2.50 (base calibration)
+B     = 1.02 - 1.18 (complexity exponent: low/medium/high)
+KLOC  = thousands of lines of code, weighted by language productivity
+EM    = product of effort multipliers (experience, reuse, tools, modern framework, COCOMO drivers)
 ```
 
-**Considerations**:
-- Domain expertise in healthcare/pharma
-- Shiny framework proficiency
-- R programming skills
-- Data engineering capabilities
+Schedule is derived from effort via a power-law formula. Realistic constraints cap team size at min(max_team_size, 8) and schedule at max_schedule_months. Compressed timelines trigger premium multipliers (1.2x-2.0x). Teams of 6+ get a 10% coordination premium. Confidence intervals are +/- 30% of the realistic cost.
 
-#### 3. Reuse Factor
-**Assess code reuse opportunities (0.7-1.3):**
+### Maintenance & TCO
 
-```
-0.7 = High reuse (internal packages, templates, 50%+ reuse)
-0.9 = Moderate reuse (some shared components, 20-30% reuse)
-1.0 = Baseline (typical project, ~10% reuse)
-1.2 = Low reuse (mostly custom code, < 5% reuse)
-1.3 = Greenfield (entirely new domain, no reuse)
-```
+When maintenance years > 0, the model projects ongoing costs:
 
-#### 4. Tool Support Quality
-**Evaluate development environment (0.8-1.2):**
+- **Annual maintenance** = realistic_cost × maintenance_rate
+- Costs **compound at 5% per year** to account for growing complexity and knowledge turnover
+- **TCO** = build cost + total maintenance over the projection period
 
-```
-0.8 = Excellent (RStudio, Git, CI/CD, testing frameworks, linters)
-0.9 = Good (IDE, version control, some automation)
-1.0 = Baseline (standard setup)
-1.1 = Fair (limited tooling, manual processes)
-1.2 = Poor (no IDE, no version control)
-```
+## Key Parameters
 
-#### 5. Team Size Constraints
-**Set realistic limits:**
-
-- **Small projects**: max_team_size = 2-3
-- **Medium projects**: max_team_size = 4-5
-- **Large projects**: max_team_size = 6-8
-
-**Note**: Coordination overhead increases with team size (6-8 people get +5% cost penalty)
-
-#### 6. Schedule Constraints
-**Balance timeline vs. cost:**
-
-- **Relaxed**: max_schedule_months = 36 (lower cost, larger team)
-- **Standard**: max_schedule_months = 24 (balanced)
-- **Aggressive**: max_schedule_months = 12 (premium costs)
-- **Critical**: max_schedule_months = 6 (2x+ premiums)
-
-**Premium Multipliers**:
-```
-Compression Ratio     Premium
-────────────────────────────────
-4x+                   +100%
-3x                    +70%
-2x                    +40%
-1.5x                  +20%
-< 1.5x                baseline
-```
-
----
-
-### Calibration for Your Organization
-
-**Customize base parameters** to match your environment:
-
-```r
-# In shiny_cost_estimator.R, adjust:
-A <- 2.50  # Base productivity (2.0-3.0)
-C <- 3.50  # Schedule compression (3.0-4.0)
-
-# Monthly wage
-monthly_wage <- your_avg_annual_wage / 12
-```
-
-**Calibration Process**:
-1. Analyze 3-5 completed projects
-2. Compare estimates to actuals
-3. Adjust A and C to minimize variance
-4. Document your calibrated values
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Areas for enhancement:
-
-- **Calibration Data**: Share anonymized project data for model validation
-- **Language Support**: Add productivity factors for new languages
-- **Export Formats**: JSON, XML, or API integrations
-- **Visualizations**: Charts for effort distribution, sensitivity analysis
-- **Web Interface**: Shiny app wrapper for the estimator
-- **CI/CD Integration**: GitHub Actions, GitLab CI templates
-
-### Development Setup
-
-```bash
-# Fork and clone
-git clone https://github.com/yourusername/shiny-app-valuation.git
-
-# Create feature branch
-git checkout -b feature/your-feature
-
-# Make changes and test
-Rscript R/repo_code_analyzer.R
-python3 Python/repo_code_analyzer.py analyze .
-
-# Commit and push
-git commit -am "Add feature: description"
-git push origin feature/your-feature
-```
-
----
-
-## 📖 References
-
-### COCOMO II Model
-- **Official Site**: [http://csse.usc.edu/csse/research/COCOMOII/cocomo_main.html](http://csse.usc.edu/csse/research/COCOMOII/cocomo_main.html)
-- **Book**: *Software Cost Estimation with COCOMO II* by Barry Boehm et al.
-- **Paper**: Boehm, B., et al. (2000). "Software Cost Estimation with COCOMO II"
-
-### Productivity Research
-- **Shiny Framework**: [https://shiny.rstudio.com/](https://shiny.rstudio.com/)
-- **scc Tool**: [https://github.com/boyter/scc](https://github.com/boyter/scc) (inspiration for report format)
-- **Programming Language Productivity**: Jones, C. (2007). "Estimating Software Costs"
-
----
-
-## 📄 License
-
-MIT License - See [LICENSE](LICENSE) file for details
-
----
-
-## 💬 Support
-
-**Questions or Issues?**
-- Open an issue on GitHub
-- Email: alexis.roldan@takeda.com
-- Documentation: [Wiki](https://github.com/yourusername/shiny-app-valuation/wiki)
-
----
-
-## 🎯 Quick Reference Card
-
-### R Quick Commands
-```r
-# Simple analysis
-source("R/repo_code_analyzer.R")
-analyze_repo_code(".")
-
-# Custom parameters
-analyze_repo_code(
-  path = "my-project",
-  avg_wage = 120000,
-  complexity = "high",
-  team_experience = 3,
-  max_team_size = 4
-)
-
-# Standalone estimate
-source("R/shiny_cost_estimator.R")
-estimate_shiny_cost(10000, "medium", 4) %>%
-  print_shiny_cost_report()
-```
-
-### Python Quick Commands
-```bash
-# Simple analysis
-python3 Python/repo_code_analyzer.py analyze .
-
-# With exports
-python3 Python/repo_code_analyzer.py analyze my-project \
-  --avg-wage 120000 \
-  --complexity high \
-  --out reports/estimate \
-  --formats csv html
-
-# Direct estimation
-python3 Python/repo_code_analyzer.py estimate \
-  --lines 10000 \
-  --complexity medium \
-  --team-exp 4
-```
-
-### Parameter Quick Reference
 | Parameter | Range | Default | Description |
-|-----------|-------|---------|-------------|
-| `avg_wage` | $60K-$200K | $105K | Annual salary |
-| `complexity` | low/med/high | medium | Project complexity |
-| `team_experience` | 1-5 | 4 | Team skill level |
-| `reuse_factor` | 0.7-1.3 | 1.0 | Code reuse |
-| `tool_support` | 0.8-1.2 | 1.0 | Tooling quality |
-| `max_team_size` | 1-8 | 5 | Team limit |
-| `max_schedule_months` | 1-36 | 24 | Timeline limit |
+|---|---|---|---|
+| `complexity` | low / medium / high | medium | Drives the exponent B |
+| `team_experience` | 1-5 | 4 | 1=novice (+15%), 5=expert (-5%) |
+| `reuse_factor` | 0.7-1.3 | 1.0 | Lower = more reuse |
+| `tool_support` | 0.8-1.2 | 1.0 | Lower = better tooling |
+| `avg_wage` | $50K-$300K | $105K | Annual developer salary |
+| `max_team_size` | 1-10 | 5 | Hard cap on team (max 8 effective) |
+| `max_schedule_months` | 3-36 | 24 | Schedule ceiling |
+| `rely, cplx, ruse, pcon, apex` | varies | 1.0 | Advanced COCOMO II cost drivers |
+| `maintenance_rate` | 0-0.40 | 0.20 | Annual maintenance as fraction of build cost |
+| `maintenance_years` | 0-10 | 0 | Years to project maintenance (0 = disabled) |
 
----
+## Features
 
-<div align="center">
+### Interactive Dashboard
 
-**Built with ❤️ for the R Shiny and Data Science Community**
+- **Hero KPI layout** with value boxes showing estimated cost, confidence range, schedule, team size, and TCO
+- **Waterfall cost breakdown** chart showing how each COCOMO II multiplier contributes to the final estimate
+- **Language distribution** pie chart from repository analysis
+- **Sensitivity analysis** — interactive chart showing how cost varies with complexity and team experience
+- **Dark theme** (Bootswatch Darkly) with Roboto font and Plotly charts styled for dark backgrounds
 
-⭐ Star this repo if it helped you estimate your project costs!
+### Three Analysis Modes
 
-</div>
+- **Local Folder** — browse to a repository on your machine; files are scanned and counted automatically
+- **ZIP Upload** — upload a `.zip` of any repository (max 50 MB); extracted in an isolated temp directory with path-traversal validation
+- **Manual Entry** — enter line counts per language (R, Python, JavaScript, SQL, CSS, Other) for quick estimates
+
+### AI Assistant (Optional)
+
+An AI-powered chatbot embedded as a sub-tab within each analysis module. Each tab's chat instance has its own context built from that specific analysis's `est()` reactive, so the assistant references the actual numbers from that analysis.
+
+- Powered by `ellmer` + `shinychat` (OpenAI `gpt-4.1-nano`)
+- Graceful degradation: shows install instructions if packages are missing, setup instructions if no API key
+- Module namespacing ensures independent chat instances with no ID collisions across tabs
+
+**Setup:**
+
+```r
+# Install optional packages
+install.packages(c("ellmer", "shinychat"))
+
+# Set API key (in .Renviron or before launching)
+Sys.setenv(OPENAI_API_KEY = "sk-...")
+```
+
+### Scenario Comparison
+
+Compare up to 3 scenarios side-by-side in the Compare tab. Each scenario has independent parameter controls including tool support quality. Results are displayed in a comparative table.
+
+### Export & Sharing
+
+- **Shareable URLs** with proper protocol detection (http/https) and pre-filled Manual Entry parameters
+- **CSV export** of analysis results
+- **JSON export** for programmatic consumption
+
+### In-App Documentation
+
+- **User Guide** and **Release Notes** accessible via navbar buttons
+- Context-sensitive `?` help buttons next to every sidebar parameter with detailed explanations
+
+## Project Structure
+
+```
+shiny-app-valuation/
+├── R/
+│   ├── shiny_cost_estimator.R       # Core COCOMO II estimation engine
+│   └── repo_code_analyzer.R         # Repository scanner + estimator
+├── Python/
+│   └── repo_code_analyzer.py        # Python CLI equivalent (full feature parity)
+├── cost-estimator-app/
+│   ├── app.R                        # Main Shiny app (~920 lines)
+│   ├── run_app.R                    # Launcher script
+│   ├── check_dependencies.R         # Dependency checker
+│   ├── modules/
+│   │   ├── analysis_module.R        # Shared results UI/server (5 sub-tabs)
+│   │   ├── comparison_module.R      # Scenario comparison (up to 3)
+│   │   ├── export_module.R          # URL sharing + CSV/JSON export
+│   │   ├── shiny_cost_estimator.R   # Deployment fallback copy
+│   │   └── repo_code_analyzer.R     # Deployment fallback copy
+│   ├── markdown/
+│   │   ├── user_guide.md            # In-app user guide
+│   │   └── release_notes.md         # In-app release notes
+│   └── www/
+│       └── architecture_animation.html  # Interactive architecture visualization
+├── tests/
+│   ├── testthat.R                   # Test runner
+│   └── testthat/
+│       └── test-estimate_shiny_cost.R   # 59 tests
+├── examples/
+│   └── amira_case_study.md          # Real-world case study
+├── CLAUDE.md                        # AI coding assistant instructions
+├── LICENSE                          # MIT License
+└── README.md
+```
+
+### Module Responsibilities
+
+| Module | UI Function | Server Function | Purpose |
+|---|---|---|---|
+| `analysis_module.R` | `analysisResultsUI()` | `analysisResultsServer()` | Value boxes, waterfall chart, pie chart, details table, sensitivity chart, maintenance panel, AI assistant |
+| `comparison_module.R` | `comparisonUI()` | `comparisonServer()` | Side-by-side scenario comparison with independent parameters |
+| `export_module.R` | `exportUI()` | `exportServer()` | Shareable URL generation, CSV/JSON download |
+
+### Source Resolution
+
+The app sources estimation functions from `../R/` (project root) with a fallback to `modules/` copies for deployment environments where the parent directory is not available. When updating `R/shiny_cost_estimator.R` or `R/repo_code_analyzer.R`, copy the changes to `modules/` as well.
+
+## Running Tests
+
+```bash
+Rscript tests/testthat.R
+```
+
+Requires the `testthat` package. The test suite (59 tests) covers:
+
+- Return structure and required fields
+- Known-input value ranges
+- Complexity ordering (low < medium < high)
+- Input validation and error handling
+- Team size and schedule constraints
+- Maintenance math and compounding
+- Confidence interval bounds
+- Multiplier breakdown consistency
+
+## Dependencies
+
+### Required
+
+| Package | Purpose |
+|---|---|
+| `shiny` | Web application framework |
+| `bslib` | Bootstrap 5 theming and layout |
+| `plotly` | Interactive charts (waterfall, pie, sensitivity, maintenance) |
+| `DT` | Interactive data tables |
+| `shinyWidgets` | Enhanced UI widgets |
+| `jsonlite` | JSON export |
+| `RColorBrewer` | Color palettes for charts |
+
+### Optional (AI Assistant)
+
+| Package | Purpose |
+|---|---|
+| `ellmer` | LLM chat interface (OpenAI) |
+| `shinychat` | Chat UI widget for Shiny |
+
+Plus the `OPENAI_API_KEY` environment variable.
+
+### Development
+
+| Package | Purpose |
+|---|---|
+| `testthat` | Unit testing framework |
+
+## Deployment
+
+The Shiny app can be deployed to:
+
+- **shinyapps.io** — upload the `cost-estimator-app/` directory (uses `modules/` fallback copies automatically)
+- **Posit Connect / Shiny Server** — point to `cost-estimator-app/`
+- **Docker** — install R + dependencies, copy the full project, expose the Shiny port
+
+For deployment platforms, the `modules/` directory contains fallback copies of the core estimation files so the app works without access to the `../R/` parent directory.
+
+## License
+
+MIT License - see [LICENSE](LICENSE).
+
+## Author
+
+Alexis Roldan

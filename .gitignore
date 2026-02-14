@@ -2,5 +2,13 @@
 .RData
 .Rhistory
 .Renviron
+.Rproj.user/
+rsconnect/
 /app/rsconnect/
 /app/.Renviron
+.vscode/
+.idea/
+*.Rproj
+node_modules/
+__pycache__/
+*.pyc
