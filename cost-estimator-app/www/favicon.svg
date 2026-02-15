@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#375a7f"/>
+      <stop offset="100%" stop-color="#2c4a6b"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="12" fill="url(#bg)"/>
+  <!-- Left bracket < -->
+  <path d="M18 20 L8 32 L18 44" fill="none" stroke="#00bc8c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Right bracket > -->
+  <path d="M46 20 L56 32 L46 44" fill="none" stroke="#00bc8c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Dollar sign -->
+  <text x="32" y="41" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="26" fill="#ffffff">$</text>
+</svg>

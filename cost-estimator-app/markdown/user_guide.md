@@ -18,6 +18,8 @@ The Shiny Cost Estimator uses the **COCOMO II** (Constructive Cost Model) method
 
 Best for analyzing projects on your local machine.
 
+> **Note:** This tab is only available when running the app locally (e.g., from RStudio or `shiny::runApp()`). On the hosted version (shinyapps.io), use **ZIP Upload** or **Manual Entry** instead.
+
 1. Navigate to the **Local Folder** tab
 2. Enter or browse to the repository path
 3. Adjust project settings in the sidebar (complexity, team experience, etc.)

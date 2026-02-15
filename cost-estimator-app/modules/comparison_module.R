@@ -122,7 +122,7 @@ comparisonServer <- function(id) {
         ))
       }
 
-      plot_ly(comp_data, x = ~Scenario, y = ~Value, color = ~Metric, type = 'bar') %>%
+      plot_ly(comp_data, x = comp_data$Scenario, y = comp_data$Value, color = comp_data$Metric, type = 'bar') %>%
         layout(title = "Scenario Comparison",
                yaxis = list(title = "Value"),
                barmode = 'group')

@@ -7,6 +7,7 @@ library(bslib)
 library(plotly)
 library(DT)
 library(shinyWidgets)
+library(markdown)
 
 # Optional AI assistant packages
 ai_available <- tryCatch({
@@ -32,6 +33,9 @@ if (file.exists("../R/repo_code_analyzer.R")) {
 source("modules/analysis_module.R")
 source("modules/comparison_module.R")
 source("modules/export_module.R")
+
+# Detect deployed environment (shinyapps.io sets R_CONFIG_ACTIVE="rsconnect")
+is_deployed <- nzchar(Sys.getenv("R_CONFIG_ACTIVE"))
 
 # Helper: setting label with inline "?" help button
 setting_help_btn <- function(label, id) {
@@ -127,6 +131,9 @@ advanced_cocomo_sidebar <- function(prefix) {
 ui <- page_navbar(
   title = "Shiny Cost Estimator",
   id = "nav",
+  header = tags$head(
+    tags$link(rel = "icon", type = "image/svg+xml", href = "favicon.svg")
+  ),
   theme = bs_theme(
     version = 5,
     bootswatch = "darkly",
@@ -159,7 +166,7 @@ ui <- page_navbar(
 
             h4("Three Analysis Modes:"),
             tags$ul(
-              tags$li(tags$b("Local Folder:"), " Analyze projects on your computer (best for local use)"),
+              if (!is_deployed) tags$li(tags$b("Local Folder:"), " Analyze projects on your computer (best for local use)"),
               tags$li(tags$b("ZIP Upload:"), " Upload a repository ZIP file (works anywhere)"),
               tags$li(tags$b("Manual Entry:"), " Quick estimates without code analysis")
             ),
@@ -179,7 +186,7 @@ ui <- page_navbar(
             h4("Getting Started:"),
             p("Choose an analysis mode below or from the tabs above."),
 
-            actionButton("start_local", "Start Local Analysis",
+            if (!is_deployed) actionButton("start_local", "Start Local Analysis",
                         icon = icon("folder-open"),
                         class = "btn-primary btn-lg me-2"),
             actionButton("start_zip", "Upload ZIP",
@@ -194,8 +201,8 @@ ui <- page_navbar(
     )
   ),
 
-  # Local Folder tab
-  nav_panel(
+  # Local Folder tab (hidden when deployed to shinyapps.io)
+  if (!is_deployed) nav_panel(
     title = "Local Folder",
     icon = icon("folder-open"),
     layout_sidebar(
@@ -318,9 +325,11 @@ server <- function(input, output, session) {
   # HOME TAB - Navigation buttons (fixed: plain text tab names)
   # ============================================================================
 
-  observeEvent(input$start_local, {
-    nav_select("nav", selected = "Local Folder")
-  })
+  if (!is_deployed) {
+    observeEvent(input$start_local, {
+      nav_select("nav", selected = "Local Folder")
+    })
+  }
 
   observeEvent(input$start_zip, {
     nav_select("nav", selected = "ZIP Upload")
@@ -779,7 +788,8 @@ server <- function(input, output, session) {
   # ZIP UPLOAD ANALYSIS
   # ============================================================================
 
-  observeEvent(input$analyze_zip, {
+  # Shared analysis function for ZIP files
+  run_zip_analysis <- function() {
     req(input$zip_file)
 
     # Security: check file size (50MB limit)
@@ -798,16 +808,24 @@ server <- function(input, output, session) {
         setProgress(value = 0.1, detail = "Extracting ZIP file...")
         unzip(input$zip_file$datapath, exdir = temp_dir)
 
-        # Validate: no path traversal
+        # Validate: files were extracted
         extracted_files <- list.files(temp_dir, recursive = TRUE, full.names = TRUE)
+        if (length(extracted_files) == 0) {
+          showNotification("Could not extract any files from the ZIP archive.", type = "error")
+          return(NULL)
+        }
+
+        # Validate: no path traversal
         relative_paths <- gsub(paste0("^", normalizePath(temp_dir)), "", normalizePath(extracted_files))
         if (any(grepl("\\.\\.", relative_paths))) {
           showNotification("ZIP contains invalid paths (path traversal detected).", type = "error")
           return(NULL)
         }
 
-        # Find the actual repo folder
+        # Find the actual repo folder (filter out __MACOSX and hidden directories)
         extracted_folders <- list.dirs(temp_dir, recursive = FALSE)
+        extracted_folders <- extracted_folders[!grepl("^__MACOSX$", basename(extracted_folders))]
+        extracted_folders <- extracted_folders[!grepl("^\\.", basename(extracted_folders))]
         repo_path <- if (length(extracted_folders) > 0) extracted_folders[1] else temp_dir
 
         setProgress(value = 0.2, detail = "Analyzing files...")
@@ -829,12 +847,26 @@ server <- function(input, output, session) {
             }
           )
         })
+
+        # Handle case where no code files were found
+        if (is.null(analysis) || nrow(analysis) == 0 || sum(analysis$Code) == 0) {
+          showNotification(
+            "No code files found in the ZIP archive. Please ensure it contains source code files.",
+            type = "warning", duration = 8
+          )
+          return(NULL)
+        }
+
         results$zip <- list(lang_summary = analysis)
       })
       showNotification("ZIP analysis complete!", type = "message", duration = 3)
     }, error = function(e) {
       showNotification(paste("Error:", e$message), type = "error", duration = 10)
     })
+  }
+
+  observeEvent(input$analyze_zip, {
+    run_zip_analysis()
   })
 
   zip_data <- reactive({

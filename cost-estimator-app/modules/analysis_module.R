@@ -207,7 +207,7 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
       n_colors <- max(3, nrow(lang_df))
       colors <- RColorBrewer::brewer.pal(min(n_colors, 12), "Set3")
 
-      plot_ly(lang_df, labels = ~Language, values = ~Code, type = 'pie',
+      plot_ly(lang_df, labels = lang_df$Language, values = lang_df$Code, type = 'pie',
              textposition = 'inside',
              textinfo = 'label+percent',
              hoverinfo = 'label+value+percent',
@@ -262,9 +262,9 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
 
       plot_ly(
         type = "waterfall",
-        x = ~names_vec,
-        y = ~values_vec,
-        measure = ~measures_vec,
+        x = names_vec,
+        y = values_vec,
+        measure = measures_vec,
         connector = list(line = list(color = "rgba(255,255,255,0.3)")),
         decreasing = list(marker = list(color = "#00bc8c")),
         increasing = list(marker = list(color = "#e74c3c")),
@@ -380,7 +380,7 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
         }
       }
 
-      plot_ly(sens_data, x = ~TeamExp, y = ~Cost, color = ~Complexity,
+      plot_ly(sens_data, x = sens_data$TeamExp, y = sens_data$Cost, color = sens_data$Complexity,
              type = 'scatter', mode = 'lines+markers',
              colors = c("#00bc8c", "#375a7f", "#e74c3c")) %>%
         layout(
