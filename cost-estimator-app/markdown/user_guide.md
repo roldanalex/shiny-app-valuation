@@ -14,37 +14,42 @@ The Shiny Cost Estimator uses the **COCOMO II** (Constructive Cost Model) method
 
 ## Analysis Modes
 
+All three input methods are available from the single **Analyze** tab. Use the selector at the top of the sidebar to switch between them.
+
 ### Local Folder
 
 Best for analyzing projects on your local machine.
 
-> **Note:** This tab is only available when running the app locally (e.g., from RStudio or `shiny::runApp()`). On the hosted version (shinyapps.io), use **ZIP Upload** or **Manual Entry** instead.
+> **Note:** Local Folder is only available when running the app locally (e.g., from RStudio or `shiny::runApp()`). On the hosted version (shinyapps.io), use **ZIP Upload** or **Manual Entry** instead.
 
-1. Navigate to the **Local Folder** tab
-2. Enter or browse to the repository path
-3. Adjust project settings in the sidebar (complexity, team experience, etc.)
-4. Click **Analyze Repository**
-5. Review results in the sub-tabs on the right
+1. Navigate to the **Analyze** tab
+2. Select **Local Folder** in the sidebar selector
+3. Enter or browse to the repository path
+4. Adjust project settings in the sidebar
+5. Click **Run Analysis**
+6. Review results in the sub-tabs on the right
 
 ### ZIP Upload
 
 Best for analyzing projects on a deployed server or when sharing with others.
 
-1. Navigate to the **ZIP Upload** tab
-2. Click **Browse** and select a `.zip` file of your repository (max 50 MB)
-3. Adjust project settings in the sidebar
-4. Click **Analyze ZIP**
-5. Review results in the sub-tabs on the right
+1. Navigate to the **Analyze** tab
+2. Select **ZIP Upload** in the sidebar selector
+3. Click **Browse** and select a `.zip` file of your repository (max 50 MB)
+4. Adjust project settings in the sidebar
+5. Click **Run Analysis**
+6. Review results in the sub-tabs on the right
 
 ### Manual Entry
 
 Best for quick estimates when you already know your line counts.
 
-1. Navigate to the **Manual Entry** tab
-2. Enter code lines per language (R, Python, JavaScript, SQL, CSS, Other)
-3. Adjust project settings in the sidebar
-4. Click **Calculate Estimate**
-5. Review results in the sub-tabs on the right
+1. Navigate to the **Analyze** tab
+2. Select **Manual Entry** in the sidebar selector
+3. Enter code lines per language (R, Python, JavaScript, SQL, CSS, Other)
+4. Adjust project settings in the sidebar
+5. Click **Run Analysis**
+6. Review results in the sub-tabs on the right
 
 ---
 
@@ -91,28 +96,35 @@ When enabled, the Maintenance sub-tab shows annual costs (with 5% compounding fo
 
 ## Understanding Results
 
-Results appear in four sub-tabs:
+Results appear in five sub-tabs:
 
 ### Results
 
-Top-level KPI value boxes showing estimated cost, schedule, team size, and cost range (confidence interval). Below these is a **waterfall chart** showing how each cost multiplier contributes to the final estimate.
+KPI value boxes showing estimated cost, schedule, team size, and cost range (confidence interval). Below these are four charts:
+
+- **Code Distribution by Language** — a treemap showing the share of code lines per language
+- **Cost Breakdown: COCOMO II Multipliers** — a waterfall chart showing how each effort multiplier adds or removes cost from the base estimate
+- **What's Driving Your Cost?** — a horizontal bar chart ranking each driver by its dollar impact (red = adds cost, green = saves cost)
+- **Schedule vs. Cost Tradeoff** — a curve showing how changing the max schedule deadline affects the total cost
+
+Each chart card has a full-screen expand icon in the top-right corner. A persistent summary strip at the bottom of the page always shows the key metrics (cost, schedule, team, confidence range).
 
 ### Details
 
-- **Language breakdown** pie chart (for repo analyses)
+- **Language breakdown** treemap (for repo analyses)
 - **Detailed parameters table** showing all inputs and calculated values
 
 ### Sensitivity
 
-Interactive chart showing how the estimate changes as you vary a single parameter (complexity, team experience, reuse, or tools) while holding others constant.
+Interactive chart showing how the estimate changes as you vary complexity and team experience while holding other parameters constant.
 
-### Maintenance
+### Maintenance & TCO
 
 Visible when maintenance years > 0. Shows:
 
-- Annual maintenance cost per year (with turnover compounding)
-- Total maintenance cost
-- Total Cost of Ownership (build + maintenance)
+- Build cost, total maintenance, and TCO value boxes
+- **Cumulative TCO Over Time** — a line chart showing year-by-year growth in total spend, with a break-even annotation when cumulative maintenance equals the build cost
+- **TCO at Different Maintenance Rates** — a bar chart comparing total cost of ownership across maintenance rate scenarios
 
 ---
 

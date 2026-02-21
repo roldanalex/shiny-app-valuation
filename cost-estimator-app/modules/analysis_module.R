@@ -20,71 +20,104 @@ dark_plotly_layout <- list(
 
 analysisResultsUI <- function(id, ai_available = FALSE) {
   ns <- NS(id)
-  navset_card_tab(
-    nav_panel("Results",
-      uiOutput(ns("results_summary")),
-      layout_column_wrap(
-        width = 1/2,
-        card(
-          card_header("Code Distribution by Language"),
-          card_body(plotlyOutput(ns("lang_chart"), height = "380px"))
+  tagList(
+    navset_card_tab(
+      # ── Results sub-tab ──────────────────────────────────────────────────
+      nav_panel("Results",
+        uiOutput(ns("results_summary")),
+        layout_column_wrap(
+          width = 1/2,
+          card(
+            class = "result-card",
+            full_screen = TRUE,
+            card_header("Code Distribution by Language"),
+            card_body(plotlyOutput(ns("lang_chart"), height = "420px"))
+          ),
+          card(
+            class = "result-card",
+            full_screen = TRUE,
+            card_header("Cost Breakdown: COCOMO II Multipliers"),
+            card_body(plotlyOutput(ns("cost_breakdown"), height = "420px"))
+          )
         ),
-        card(
-          card_header("Cost Breakdown: COCOMO II Multipliers"),
-          card_body(plotlyOutput(ns("cost_breakdown"), height = "380px"))
+        layout_column_wrap(
+          width = 1/2,
+          card(
+            class = "result-card",
+            full_screen = TRUE,
+            card_header("What's Driving Your Cost?"),
+            card_body(plotlyOutput(ns("driver_impact"), height = "420px"))
+          ),
+          card(
+            class = "result-card",
+            full_screen = TRUE,
+            card_header("Schedule vs. Cost Tradeoff"),
+            card_body(plotlyOutput(ns("schedule_tradeoff"), height = "420px"))
+          )
         )
+      ),
+
+      # ── Details sub-tab ──────────────────────────────────────────────────
+      nav_panel("Details",
+        DTOutput(ns("details_table")),
+        tags$h5("Estimate Report",
+          style = "border-bottom: 1px solid #444; padding-bottom: 8px; margin-top: 24px;"
+        ),
+        verbatimTextOutput(ns("estimate_text"))
+      ),
+
+      # ── Sensitivity sub-tab ──────────────────────────────────────────────
+      nav_panel("Sensitivity",
+        uiOutput(ns("sensitivity_ui"))
+      ),
+
+      # ── Maintenance & TCO sub-tab ────────────────────────────────────────
+      nav_panel("Maintenance & TCO",
+        uiOutput(ns("maintenance_ui"))
+      ),
+
+      # ── AI Assistant sub-tab ─────────────────────────────────────────────
+      nav_panel("AI Assistant",
+        if (!ai_available) {
+          card(
+            card_header("AI Assistant"),
+            card_body(
+              h4("Optional packages required"),
+              p("The AI Assistant requires the",
+                tags$code("ellmer"), "and",
+                tags$code("shinychat"),
+                "packages, which are not currently installed."),
+              p("Install them from R:"),
+              tags$pre("install.packages(c('ellmer', 'shinychat'))"),
+              p("Then restart the app to enable the AI Assistant.")
+            )
+          )
+        } else if (!nzchar(Sys.getenv("OPENAI_API_KEY", ""))) {
+          card(
+            card_header("AI Assistant"),
+            card_body(
+              h4("API key required"),
+              p("The AI Assistant needs an OpenAI API key to generate responses."),
+              p("Set it before launching the app:"),
+              tags$pre('Sys.setenv(OPENAI_API_KEY = "sk-...")'),
+              p("Or set the", tags$code("OPENAI_API_KEY"),
+                "environment variable in your", tags$code(".Renviron"), "file."),
+              p("Then restart the app.")
+            )
+          )
+        } else {
+          card(
+            card_body(
+              style = "padding: 0;",
+              chat_ui(ns("ai_chat"), height = "600px")
+            )
+          )
+        }
       )
     ),
-    nav_panel("Details",
-      DTOutput(ns("details_table")),
-      tags$h5("Estimate Report",
-        style = "border-bottom: 1px solid #444; padding-bottom: 8px; margin-top: 24px;"
-      ),
-      verbatimTextOutput(ns("estimate_text"))
-    ),
-    nav_panel("Sensitivity",
-      uiOutput(ns("sensitivity_ui"))
-    ),
-    nav_panel("Maintenance & TCO",
-      uiOutput(ns("maintenance_ui"))
-    ),
-    nav_panel("AI Assistant",
-      if (!ai_available) {
-        card(
-          card_header("AI Assistant"),
-          card_body(
-            h4("Optional packages required"),
-            p("The AI Assistant requires the",
-              tags$code("ellmer"), "and",
-              tags$code("shinychat"),
-              "packages, which are not currently installed."),
-            p("Install them from R:"),
-            tags$pre("install.packages(c('ellmer', 'shinychat'))"),
-            p("Then restart the app to enable the AI Assistant.")
-          )
-        )
-      } else if (!nzchar(Sys.getenv("OPENAI_API_KEY", ""))) {
-        card(
-          card_header("AI Assistant"),
-          card_body(
-            h4("API key required"),
-            p("The AI Assistant needs an OpenAI API key to generate responses."),
-            p("Set it before launching the app:"),
-            tags$pre('Sys.setenv(OPENAI_API_KEY = "sk-...")'),
-            p("Or set the", tags$code("OPENAI_API_KEY"),
-              "environment variable in your", tags$code(".Renviron"), "file."),
-            p("Then restart the app.")
-          )
-        )
-      } else {
-        card(
-          card_body(
-            style = "padding: 0;",
-            chat_ui(ns("ai_chat"), height = "600px")
-          )
-        )
-      }
-    )
+
+    # ── Persistent summary strip (appears once estimate exists) ──────────────
+    uiOutput(ns("summary_strip"))
   )
 }
 
@@ -107,49 +140,63 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
 
       p <- params()
       estimate_shiny_cost(
-        code_lines = total_code,
-        complexity = p$complexity,
-        team_experience = p$team_exp,
-        reuse_factor = p$reuse,
-        tool_support = p$tools,
-        language_mix = language_mix,
-        avg_wage = if (!is.null(p$wage)) p$wage else 105000,
-        max_team_size = if (!is.null(p$max_team)) p$max_team else 5,
-        max_schedule_months = if (!is.null(p$max_schedule)) p$max_schedule else 24,
-        rely = if (!is.null(p$rely)) p$rely else 1.0,
-        cplx = if (!is.null(p$cplx)) p$cplx else 1.0,
-        ruse = if (!is.null(p$ruse)) p$ruse else 1.0,
-        pcon = if (!is.null(p$pcon)) p$pcon else 1.0,
-        apex = if (!is.null(p$apex)) p$apex else 1.0,
-        maintenance_rate = if (!is.null(p$maintenance_rate)) p$maintenance_rate else 0.20,
-        maintenance_years = if (!is.null(p$maintenance_years)) p$maintenance_years else 0
+        code_lines          = total_code,
+        complexity          = p$complexity,
+        team_experience     = p$team_exp,
+        reuse_factor        = p$reuse,
+        tool_support        = p$tools,
+        language_mix        = language_mix,
+        avg_wage            = if (!is.null(p$wage))          p$wage          else 105000,
+        max_team_size       = if (!is.null(p$max_team))      p$max_team      else 5,
+        max_schedule_months = if (!is.null(p$max_schedule))  p$max_schedule  else 24,
+        rely                = if (!is.null(p$rely))          p$rely          else 1.0,
+        cplx                = if (!is.null(p$cplx))          p$cplx          else 1.0,
+        ruse                = if (!is.null(p$ruse))          p$ruse          else 1.0,
+        pcon                = if (!is.null(p$pcon))          p$pcon          else 1.0,
+        apex                = if (!is.null(p$apex))          p$apex          else 1.0,
+        maintenance_rate    = if (!is.null(p$maintenance_rate))  p$maintenance_rate  else 0.20,
+        maintenance_years   = if (!is.null(p$maintenance_years)) p$maintenance_years else 0
       )
     })
 
-    # Value boxes
+    # ==========================================================================
+    # RESULTS SUMMARY — hero cost box + 2×2 KPI grid
+    # ==========================================================================
     output$results_summary <- renderUI({
       e <- est()
-      ci_text <- paste0(
-        "$", format(e$confidence_interval$low, big.mark = ","),
-        " - $", format(e$confidence_interval$high, big.mark = ",")
-      )
+      ci_low  <- paste0("$", format(e$confidence_interval$low,  big.mark = ","))
+      ci_high <- paste0("$", format(e$confidence_interval$high, big.mark = ","))
+
+      # Determine if schedule premium is active
+      sched_class <- if (!is.null(e$premium_multiplier) && e$premium_multiplier > 1.0)
+        "warning-card" else "result-card"
+
       tagList(
         layout_columns(
           col_widths = c(5, 7),
           heights_equal = "row",
 
-          # Hero cost card (left)
+          # ── Hero cost box ──
           value_box(
-            title = "Estimated Cost",
+            title = "Estimated Development Cost",
             value = paste0("$", format(e$realistic_cost_usd, big.mark = ",")),
-            p(ci_text),
+            div(
+              class = "confidence-bar-container",
+              div(class = "confidence-bar"),
+              div(
+                class = "confidence-labels",
+                tags$span(ci_low),
+                tags$span("▲ 70% confidence range ▲"),
+                tags$span(ci_high)
+              )
+            ),
             showcase = icon("dollar-sign"),
             showcase_layout = "top right",
             theme = "success",
             height = "100%"
           ),
 
-          # 2x2 KPI grid (right)
+          # ── 2×2 KPI grid ──
           layout_column_wrap(
             width = 1/2,
             height = "100%",
@@ -159,11 +206,15 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
               showcase = icon("code"),
               theme = "primary"
             ),
-            value_box(
-              title = "Schedule",
-              value = paste0(e$final_schedule_months, " months"),
-              showcase = icon("calendar"),
-              theme = "info"
+            card(
+              class = sched_class,
+              style = "padding: 0;",
+              value_box(
+                title = "Schedule",
+                value = paste0(e$final_schedule_months, " months"),
+                showcase = icon("calendar"),
+                theme = "info"
+              )
             ),
             value_box(
               title = "Team Size",
@@ -174,9 +225,7 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
             if (!is.null(e$maintenance)) {
               value_box(
                 title = "Total Cost (TCO)",
-                value = paste0(
-                  "$", format(e$maintenance$tco, big.mark = ",")
-                ),
+                value = paste0("$", format(e$maintenance$tco, big.mark = ",")),
                 showcase = icon("coins"),
                 theme = "primary"
               )
@@ -193,7 +242,9 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
       )
     })
 
-    # Language pie chart
+    # ==========================================================================
+    # LANGUAGE TREEMAP (Phase 2.5 — replaces pie chart)
+    # ==========================================================================
     output$lang_chart <- renderPlotly({
       data <- analysis_data()
       if (!is.null(data$lang_summary)) {
@@ -201,96 +252,257 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
       } else {
         lang_df <- data.frame(
           Language = names(data$language_mix),
-          Code = unlist(data$language_mix)
+          Code     = unlist(data$language_mix)
         )
       }
-      n_colors <- max(3, nrow(lang_df))
-      colors <- RColorBrewer::brewer.pal(min(n_colors, 12), "Set3")
 
-      plot_ly(lang_df, labels = lang_df$Language, values = lang_df$Code, type = 'pie',
-             textposition = 'inside',
-             textinfo = 'label+percent',
-             hoverinfo = 'label+value+percent',
-             marker = list(colors = colors),
-             textfont = list(color = "#fff")) %>%
+      n_colors <- max(3, nrow(lang_df))
+      colors   <- RColorBrewer::brewer.pal(min(n_colors, 12), "Set3")
+
+      plot_ly(
+        type      = "treemap",
+        labels    = lang_df$Language,
+        parents   = rep("", nrow(lang_df)),
+        values    = lang_df$Code,
+        textinfo  = "label+percent root",
+        marker    = list(colors = colors),
+        hovertemplate = paste0(
+          "<b>%{label}</b><br>",
+          "Lines: %{value:,}<br>",
+          "Share: %{percentRoot:.1%}<extra></extra>"
+        )
+      ) %>%
         layout(
-          showlegend = TRUE,
           paper_bgcolor = dark_plotly_layout$paper_bgcolor,
-          plot_bgcolor = dark_plotly_layout$plot_bgcolor,
-          font = dark_plotly_layout$font,
-          legend = list(font = list(color = "#dee2e6"))
+          plot_bgcolor  = dark_plotly_layout$plot_bgcolor,
+          font          = dark_plotly_layout$font,
+          margin        = list(t = 10, b = 10, l = 10, r = 10)
         )
     })
 
-    # Waterfall cost breakdown chart
+    # ==========================================================================
+    # WATERFALL COST BREAKDOWN
+    # ==========================================================================
     output$cost_breakdown <- renderPlotly({
-      e <- est()
+      e  <- est()
       mb <- e$multiplier_breakdown
       base_cost <- mb$base_effort * 12000
 
-      # Compute incremental effect of each multiplier
       multipliers <- list(
-        list(name = "Experience", val = mb$EM_experience),
-        list(name = "Reuse", val = mb$EM_reuse),
-        list(name = "Tools", val = mb$EM_tools),
+        list(name = "Experience",       val = mb$EM_experience),
+        list(name = "Reuse",            val = mb$EM_reuse),
+        list(name = "Tools",            val = mb$EM_tools),
         list(name = "Modern Framework", val = mb$EM_modern)
       )
 
-      # Only show non-default COCOMO drivers
-      if (mb$EM_rely != 1.0) multipliers <- c(multipliers, list(list(name = "Reliability", val = mb$EM_rely)))
-      if (mb$EM_cplx != 1.0) multipliers <- c(multipliers, list(list(name = "Complexity", val = mb$EM_cplx)))
-      if (mb$EM_ruse != 1.0) multipliers <- c(multipliers, list(list(name = "Reusability", val = mb$EM_ruse)))
-      if (mb$EM_pcon != 1.0) multipliers <- c(multipliers, list(list(name = "Personnel", val = mb$EM_pcon)))
-      if (mb$EM_apex != 1.0) multipliers <- c(multipliers, list(list(name = "App Experience", val = mb$EM_apex)))
+      if (mb$EM_rely != 1.0) multipliers <- c(multipliers, list(list(name = "Reliability",   val = mb$EM_rely)))
+      if (mb$EM_cplx != 1.0) multipliers <- c(multipliers, list(list(name = "Complexity",    val = mb$EM_cplx)))
+      if (mb$EM_ruse != 1.0) multipliers <- c(multipliers, list(list(name = "Reusability",   val = mb$EM_ruse)))
+      if (mb$EM_pcon != 1.0) multipliers <- c(multipliers, list(list(name = "Personnel",     val = mb$EM_pcon)))
+      if (mb$EM_apex != 1.0) multipliers <- c(multipliers, list(list(name = "App Experience",val = mb$EM_apex)))
 
-      names_vec <- c("Base Effort")
-      values_vec <- c(base_cost)
+      names_vec    <- c("Base Effort")
+      values_vec   <- c(base_cost)
       measures_vec <- c("absolute")
 
       running <- base_cost
       for (m in multipliers) {
         delta <- running * (m$val - 1)
-        names_vec <- c(names_vec, m$name)
-        values_vec <- c(values_vec, delta)
+        names_vec    <- c(names_vec,    m$name)
+        values_vec   <- c(values_vec,   delta)
         measures_vec <- c(measures_vec, "relative")
         running <- running + delta
       }
 
-      names_vec <- c(names_vec, "Final Cost")
-      values_vec <- c(values_vec, e$estimated_cost_usd)
+      names_vec    <- c(names_vec,    "Final Cost")
+      values_vec   <- c(values_vec,   e$estimated_cost_usd)
       measures_vec <- c(measures_vec, "total")
 
       plot_ly(
-        type = "waterfall",
-        x = names_vec,
-        y = values_vec,
-        measure = measures_vec,
+        type      = "waterfall",
+        x         = names_vec,
+        y         = values_vec,
+        measure   = measures_vec,
         connector = list(line = list(color = "rgba(255,255,255,0.3)")),
         decreasing = list(marker = list(color = "#00bc8c")),
         increasing = list(marker = list(color = "#e74c3c")),
-        totals = list(marker = list(color = "#375a7f"))
+        totals     = list(marker = list(color = "#375a7f"))
       ) %>%
         layout(
           xaxis = list(
-            title = "",
-            categoryorder = "array",
+            title = "", categoryorder = "array",
             categoryarray = names_vec,
-            color = "#dee2e6",
-            gridcolor = "rgba(255,255,255,0.1)"
+            color = "#dee2e6", gridcolor = "rgba(255,255,255,0.1)"
           ),
           yaxis = list(
             title = "Cost (USD)",
-            color = "#dee2e6",
-            gridcolor = "rgba(255,255,255,0.1)"
+            color = "#dee2e6", gridcolor = "rgba(255,255,255,0.1)"
           ),
-          showlegend = FALSE,
-          paper_bgcolor = dark_plotly_layout$paper_bgcolor,
-          plot_bgcolor = dark_plotly_layout$plot_bgcolor,
-          font = dark_plotly_layout$font
+          showlegend       = FALSE,
+          paper_bgcolor    = dark_plotly_layout$paper_bgcolor,
+          plot_bgcolor     = dark_plotly_layout$plot_bgcolor,
+          font             = dark_plotly_layout$font
         )
     })
 
-    # Details table
+    # ==========================================================================
+    # DRIVER IMPACT HORIZONTAL BAR (Phase 2.2)
+    # ==========================================================================
+    output$driver_impact <- renderPlotly({
+      e  <- est()
+      mb <- e$multiplier_breakdown
+
+      # base per-month cost (before multipliers)
+      base_monthly <- mb$base_effort * (e$params$avg_wage / 12)
+
+      driver_list <- list(
+        list(name = "Experience",        val = mb$EM_experience),
+        list(name = "Reuse Factor",      val = mb$EM_reuse),
+        list(name = "Tool Support",      val = mb$EM_tools),
+        list(name = "Modern Framework",  val = mb$EM_modern),
+        list(name = "Reliability",       val = mb$EM_rely),
+        list(name = "Product Complexity",val = mb$EM_cplx),
+        list(name = "Reusability",       val = mb$EM_ruse),
+        list(name = "Personnel Continuity", val = mb$EM_pcon),
+        list(name = "App Experience",    val = mb$EM_apex)
+      )
+
+      # Compute cost delta per driver: delta_i = base_monthly * (EM_i - 1) * schedule
+      names_d  <- sapply(driver_list, `[[`, "name")
+      deltas   <- sapply(driver_list, function(d) {
+        base_monthly * (d$val - 1) * e$final_schedule_months
+      })
+
+      # Sort by absolute value descending
+      ord   <- order(abs(deltas), decreasing = TRUE)
+      names_d <- names_d[ord]
+      deltas  <- deltas[ord]
+
+      bar_colors <- ifelse(deltas > 0, "#e74c3c", "#00bc8c")
+
+      plot_ly(
+        x         = deltas,
+        y         = names_d,
+        type      = "bar",
+        orientation = "h",
+        marker    = list(color = bar_colors),
+        hovertemplate = paste0(
+          "<b>%{y}</b><br>",
+          "Cost delta: $%{x:,.0f}<extra></extra>"
+        )
+      ) %>%
+        layout(
+          xaxis = list(
+            title      = "Cost Delta (USD)",
+            color      = "#dee2e6",
+            gridcolor  = "rgba(255,255,255,0.1)",
+            zerolinecolor = "rgba(255,255,255,0.4)"
+          ),
+          yaxis = list(
+            title     = "",
+            color     = "#dee2e6",
+            autorange = "reversed"
+          ),
+          showlegend    = FALSE,
+          paper_bgcolor = dark_plotly_layout$paper_bgcolor,
+          plot_bgcolor  = dark_plotly_layout$plot_bgcolor,
+          font          = dark_plotly_layout$font,
+          margin        = list(l = 150, r = 20, t = 20, b = 50)
+        )
+    })
+
+    # ==========================================================================
+    # SCHEDULE / COST TRADEOFF CURVE (Phase 2.3)
+    # ==========================================================================
+    output$schedule_tradeoff <- renderPlotly({
+      e <- est()
+      p <- params()
+
+      data <- analysis_data()
+      if (!is.null(data$lang_summary)) {
+        total_code   <- sum(data$lang_summary$Code)
+        language_mix <- setNames(data$lang_summary$Code, data$lang_summary$Language)
+      } else {
+        total_code   <- sum(unlist(data$language_mix))
+        language_mix <- data$language_mix
+      }
+
+      schedules <- seq(6, 36, by = 2)
+      costs <- sapply(schedules, function(s) {
+        tryCatch(
+          estimate_shiny_cost(
+            code_lines          = total_code,
+            complexity          = p$complexity,
+            team_experience     = p$team_exp,
+            reuse_factor        = p$reuse,
+            tool_support        = p$tools,
+            language_mix        = language_mix,
+            avg_wage            = if (!is.null(p$wage))         p$wage         else 105000,
+            max_team_size       = if (!is.null(p$max_team))     p$max_team     else 5,
+            max_schedule_months = s,
+            rely                = if (!is.null(p$rely))         p$rely         else 1.0,
+            cplx                = if (!is.null(p$cplx))         p$cplx         else 1.0,
+            ruse                = if (!is.null(p$ruse))         p$ruse         else 1.0,
+            pcon                = if (!is.null(p$pcon))         p$pcon         else 1.0,
+            apex                = if (!is.null(p$apex))         p$apex         else 1.0,
+            maintenance_rate    = 0.0,
+            maintenance_years   = 0
+          )$realistic_cost_usd,
+          error = function(err) NA_real_
+        )
+      })
+
+      cur_sched <- e$final_schedule_months
+      cur_cost  <- e$realistic_cost_usd
+
+      plot_ly() %>%
+        add_trace(
+          x    = schedules,
+          y    = costs,
+          type = "scatter",
+          mode = "lines",
+          line = list(color = "#375a7f", width = 2),
+          name = "Cost curve",
+          hovertemplate = paste0(
+            "Schedule: %{x} months<br>",
+            "Cost: $%{y:,.0f}<extra></extra>"
+          )
+        ) %>%
+        add_trace(
+          x      = cur_sched,
+          y      = cur_cost,
+          type   = "scatter",
+          mode   = "markers",
+          marker = list(color = "#00bc8c", size = 12, symbol = "circle"),
+          name   = "Current estimate",
+          hovertemplate = paste0(
+            "<b>Current estimate</b><br>",
+            "Schedule: %{x} months<br>",
+            "Cost: $%{y:,.0f}<extra></extra>"
+          )
+        ) %>%
+        layout(
+          xaxis = list(
+            title     = "Max Schedule (months)",
+            color     = "#dee2e6",
+            gridcolor = "rgba(255,255,255,0.1)"
+          ),
+          yaxis = list(
+            title     = "Estimated Cost (USD)",
+            color     = "#dee2e6",
+            gridcolor = "rgba(255,255,255,0.1)"
+          ),
+          legend        = list(font = list(color = "#dee2e6")),
+          paper_bgcolor = dark_plotly_layout$paper_bgcolor,
+          plot_bgcolor  = dark_plotly_layout$plot_bgcolor,
+          font          = dark_plotly_layout$font,
+          margin        = list(t = 20, b = 50, l = 80, r = 20)
+        )
+    })
+
+    # ==========================================================================
+    # DETAILS TABLE
+    # ==========================================================================
     output$details_table <- renderDT({
       data <- analysis_data()
       if (!is.null(data$lang_summary)) {
@@ -307,19 +519,23 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
         "===== COST ESTIMATION REPORT =====\n\n",
         "Total Code Lines: ", format(e$code_lines, big.mark = ","), "\n",
         "Estimated Cost: $", format(e$realistic_cost_usd, big.mark = ","), "\n",
-        "Confidence Range: $", format(e$confidence_interval$low, big.mark = ","),
+        "Confidence Range: $", format(e$confidence_interval$low,  big.mark = ","),
         " - $", format(e$confidence_interval$high, big.mark = ","), "\n",
-        "Schedule: ", e$final_schedule_months, " months (", round(e$final_schedule_months/12, 1), " years)\n",
+        "Schedule: ", e$final_schedule_months, " months (",
+        round(e$final_schedule_months / 12, 1), " years)\n",
         "Team Size: ", e$final_people, " people\n",
         "Effort: ", e$effort_person_months, " person-months\n\n",
         "Parameters Used:\n",
-        "  Complexity: ", e$params$complexity, "\n",
-        "  Team Experience: ", e$params$team_experience, "\n",
-        "  Reuse Factor: ", e$params$reuse_factor, "\n",
-        "  Tool Support: ", e$params$tool_support, "\n"
+        "  Complexity: ",      e$params$complexity,       "\n",
+        "  Team Experience: ", e$params$team_experience,  "\n",
+        "  Reuse Factor: ",    e$params$reuse_factor,     "\n",
+        "  Tool Support: ",    e$params$tool_support,     "\n"
       )
       if (e$premium_multiplier > 1.0) {
-        report <- paste0(report, "  Schedule Premium: +", round((e$premium_multiplier - 1) * 100), "%\n")
+        report <- paste0(report,
+          "  Schedule Premium: +",
+          round((e$premium_multiplier - 1) * 100), "%\n"
+        )
       }
       if (!is.null(e$maintenance)) {
         report <- paste0(report,
@@ -333,7 +549,9 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
       report
     })
 
-    # Sensitivity analysis
+    # ==========================================================================
+    # SENSITIVITY ANALYSIS
+    # ==========================================================================
     output$sensitivity_ui <- renderUI({
       ns <- session$ns
       tagList(
@@ -345,44 +563,50 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
 
     output$sensitivity_chart <- renderPlotly({
       data <- analysis_data()
-      p <- params()
+      p    <- params()
 
       if (!is.null(data$lang_summary)) {
-        total_code <- sum(data$lang_summary$Code)
+        total_code   <- sum(data$lang_summary$Code)
         language_mix <- setNames(data$lang_summary$Code, data$lang_summary$Language)
       } else {
-        total_code <- sum(unlist(data$language_mix))
+        total_code   <- sum(unlist(data$language_mix))
         language_mix <- data$language_mix
       }
 
       complexity_vals <- c("low", "medium", "high")
-      team_vals <- 1:5
+      team_vals       <- 1:5
+      sens_data       <- data.frame()
 
-      sens_data <- data.frame()
       for (comp in complexity_vals) {
         for (team in team_vals) {
           e <- estimate_shiny_cost(
-            code_lines = total_code,
-            complexity = comp,
-            team_experience = team,
-            reuse_factor = p$reuse,
-            tool_support = p$tools,
-            language_mix = language_mix,
-            avg_wage = if (!is.null(p$wage)) p$wage else 105000,
-            max_team_size = if (!is.null(p$max_team)) p$max_team else 5,
-            max_schedule_months = if (!is.null(p$max_schedule)) p$max_schedule else 24
+            code_lines          = total_code,
+            complexity          = comp,
+            team_experience     = team,
+            reuse_factor        = p$reuse,
+            tool_support        = p$tools,
+            language_mix        = language_mix,
+            avg_wage            = if (!is.null(p$wage))        p$wage        else 105000,
+            max_team_size       = if (!is.null(p$max_team))    p$max_team    else 5,
+            max_schedule_months = if (!is.null(p$max_schedule))p$max_schedule else 24
           )
           sens_data <- rbind(sens_data, data.frame(
             Complexity = comp,
-            TeamExp = team,
-            Cost = e$realistic_cost_usd
+            TeamExp    = team,
+            Cost       = e$realistic_cost_usd
           ))
         }
       }
 
-      plot_ly(sens_data, x = sens_data$TeamExp, y = sens_data$Cost, color = sens_data$Complexity,
-             type = 'scatter', mode = 'lines+markers',
-             colors = c("#00bc8c", "#375a7f", "#e74c3c")) %>%
+      plot_ly(
+        sens_data,
+        x     = sens_data$TeamExp,
+        y     = sens_data$Cost,
+        color = sens_data$Complexity,
+        type  = "scatter",
+        mode  = "lines+markers",
+        colors = c("#00bc8c", "#375a7f", "#e74c3c")
+      ) %>%
         layout(
           title = list(
             text = "Cost Sensitivity: Team Experience vs Complexity",
@@ -390,25 +614,25 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
           ),
           xaxis = list(
             title = "Team Experience Level",
-            color = "#dee2e6",
-            gridcolor = "rgba(255,255,255,0.1)"
+            color = "#dee2e6", gridcolor = "rgba(255,255,255,0.1)"
           ),
           yaxis = list(
             title = "Estimated Cost (USD)",
-            color = "#dee2e6",
-            gridcolor = "rgba(255,255,255,0.1)"
+            color = "#dee2e6", gridcolor = "rgba(255,255,255,0.1)"
           ),
           paper_bgcolor = dark_plotly_layout$paper_bgcolor,
-          plot_bgcolor = dark_plotly_layout$plot_bgcolor,
-          font = dark_plotly_layout$font,
-          legend = list(font = list(color = "#dee2e6"))
+          plot_bgcolor  = dark_plotly_layout$plot_bgcolor,
+          font          = dark_plotly_layout$font,
+          legend        = list(font = list(color = "#dee2e6"))
         )
     })
 
-    # Maintenance & TCO panel
+    # ==========================================================================
+    # MAINTENANCE & TCO PANEL (Phase 3)
+    # ==========================================================================
     output$maintenance_ui <- renderUI({
       ns <- session$ns
-      e <- est()
+      e  <- est()
       if (is.null(e$maintenance)) {
         tagList(
           h4("Maintenance & Total Cost of Ownership"),
@@ -438,44 +662,228 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
             )
           ),
           hr(),
-          plotlyOutput(ns("maintenance_chart"), height = "350px")
+          layout_column_wrap(
+            width = 1/2,
+            card(
+              card_header("Cumulative TCO Over Time"),
+              card_body(plotlyOutput(ns("maintenance_chart"), height = "320px"))
+            ),
+            card(
+              card_header("TCO at Different Maintenance Rates"),
+              card_body(plotlyOutput(ns("maint_rate_chart"), height = "320px"))
+            )
+          )
         )
       }
     })
 
+    # Cumulative TCO line chart (Phase 3.1 + 3.2)
     output$maintenance_chart <- renderPlotly({
       e <- est()
       req(e$maintenance)
       m <- e$maintenance
 
-      years <- seq_len(m$maintenance_years)
+      build_cost   <- e$realistic_cost_usd
+      yearly_costs <- m$yearly_costs
+      n_years      <- m$maintenance_years
+
+      years      <- 0:n_years
+      cumulative <- c(0, cumsum(yearly_costs)) + build_cost
+
+      # Break-even: year when cumulative maintenance >= build cost
+      breakeven_idx <- which(cumsum(yearly_costs) >= build_cost)
+      breakeven_yr  <- if (length(breakeven_idx) > 0) breakeven_idx[1] else NA
+
+      shapes <- list()
+      annotations_list <- list()
+
+      # Dashed reference line at 2× build cost
+      two_x <- 2 * build_cost
+      if (max(cumulative) >= two_x) {
+        shapes <- c(shapes, list(list(
+          type      = "line",
+          x0 = 0, x1 = n_years,
+          y0 = two_x, y1 = two_x,
+          line = list(color = "#f39c12", dash = "dash", width = 1.5)
+        )))
+        annotations_list <- c(annotations_list, list(list(
+          x    = n_years * 0.02, y = two_x,
+          text = "2× build cost", showarrow = FALSE,
+          xanchor = "left", yanchor = "bottom",
+          font = list(color = "#f39c12", size = 11)
+        )))
+      }
+
+      # Break-even vertical line
+      if (!is.na(breakeven_yr)) {
+        shapes <- c(shapes, list(list(
+          type = "line",
+          x0 = breakeven_yr, x1 = breakeven_yr,
+          y0 = build_cost,   y1 = cumulative[breakeven_yr + 1],
+          line = list(color = "#e74c3c", dash = "dot", width = 1.5)
+        )))
+        annotations_list <- c(annotations_list, list(list(
+          x    = breakeven_yr, y = cumulative[breakeven_yr + 1],
+          text = paste0("Maint = Build<br>(Year ", breakeven_yr, ")"),
+          showarrow = TRUE, arrowhead = 2, arrowcolor = "#e74c3c",
+          font = list(color = "#e74c3c", size = 11),
+          xanchor = "left"
+        )))
+      }
+
       plot_ly() %>%
-        add_bars(x = "Build", y = e$realistic_cost_usd, name = "Build Cost",
-                marker = list(color = "#375a7f")) %>%
-        add_bars(x = paste("Year", years), y = m$yearly_costs, name = "Maintenance",
-                marker = list(color = "#e74c3c")) %>%
+        add_trace(
+          x    = years,
+          y    = cumulative,
+          type = "scatter",
+          mode = "lines+markers",
+          fill = "tozeroy",
+          fillcolor = "rgba(55, 90, 127, 0.2)",
+          line   = list(color = "#375a7f", width = 2.5),
+          marker = list(color = "#375a7f", size = 7),
+          name   = "Cumulative TCO",
+          hovertemplate = paste0(
+            "Year %{x}<br>Total: $%{y:,.0f}<extra></extra>"
+          )
+        ) %>%
         layout(
-          title = list(
-            text = "Build vs. Annual Maintenance Costs",
-            font = list(color = "#dee2e6")
-          ),
           xaxis = list(
-            title = "",
+            title  = "Year",
+            color  = "#dee2e6",
+            gridcolor = "rgba(255,255,255,0.1)",
+            dtick  = 1
+          ),
+          yaxis = list(
+            title = "Cumulative Cost (USD)",
+            color = "#dee2e6",
+            gridcolor = "rgba(255,255,255,0.1)"
+          ),
+          shapes      = shapes,
+          annotations = annotations_list,
+          showlegend    = FALSE,
+          paper_bgcolor = dark_plotly_layout$paper_bgcolor,
+          plot_bgcolor  = dark_plotly_layout$plot_bgcolor,
+          font          = dark_plotly_layout$font,
+          margin        = list(t = 20, b = 50, l = 80, r = 20)
+        )
+    })
+
+    # Maintenance rate sensitivity chart (Phase 3.3)
+    output$maint_rate_chart <- renderPlotly({
+      e <- est()
+      req(e$maintenance)
+
+      p    <- params()
+      data <- analysis_data()
+
+      if (!is.null(data$lang_summary)) {
+        total_code   <- sum(data$lang_summary$Code)
+        language_mix <- setNames(data$lang_summary$Code, data$lang_summary$Language)
+      } else {
+        total_code   <- sum(unlist(data$language_mix))
+        language_mix <- data$language_mix
+      }
+
+      rates <- seq(0.10, 0.30, by = 0.05)
+      tcos  <- sapply(rates, function(r) {
+        tryCatch({
+          est_r <- estimate_shiny_cost(
+            code_lines          = total_code,
+            complexity          = p$complexity,
+            team_experience     = p$team_exp,
+            reuse_factor        = p$reuse,
+            tool_support        = p$tools,
+            language_mix        = language_mix,
+            avg_wage            = if (!is.null(p$wage))         p$wage         else 105000,
+            max_team_size       = if (!is.null(p$max_team))     p$max_team     else 5,
+            max_schedule_months = if (!is.null(p$max_schedule)) p$max_schedule else 24,
+            rely                = if (!is.null(p$rely))         p$rely         else 1.0,
+            cplx                = if (!is.null(p$cplx))         p$cplx         else 1.0,
+            ruse                = if (!is.null(p$ruse))         p$ruse         else 1.0,
+            pcon                = if (!is.null(p$pcon))         p$pcon         else 1.0,
+            apex                = if (!is.null(p$apex))         p$apex         else 1.0,
+            maintenance_rate    = r,
+            maintenance_years   = e$maintenance$maintenance_years
+          )
+          if (!is.null(est_r$maintenance)) est_r$maintenance$tco else NA_real_
+        }, error = function(err) NA_real_)
+      })
+
+      cur_rate <- e$params$maintenance_rate
+
+      plot_ly(
+        x    = rates * 100,
+        y    = tcos,
+        type = "bar",
+        marker = list(
+          color = ifelse(
+            abs(rates - cur_rate) < 0.001,
+            "#00bc8c", "#375a7f"
+          )
+        ),
+        hovertemplate = paste0(
+          "Rate: %{x:.0f}%<br>",
+          "TCO: $%{y:,.0f}<extra></extra>"
+        )
+      ) %>%
+        layout(
+          xaxis = list(
+            title = "Annual Maintenance Rate (%)",
             color = "#dee2e6",
             gridcolor = "rgba(255,255,255,0.1)"
           ),
           yaxis = list(
-            title = "Cost (USD)",
+            title = "Total Cost of Ownership (USD)",
             color = "#dee2e6",
             gridcolor = "rgba(255,255,255,0.1)"
           ),
-          barmode = "group",
-          showlegend = TRUE,
+          showlegend    = FALSE,
           paper_bgcolor = dark_plotly_layout$paper_bgcolor,
-          plot_bgcolor = dark_plotly_layout$plot_bgcolor,
-          font = dark_plotly_layout$font,
-          legend = list(font = list(color = "#dee2e6"))
+          plot_bgcolor  = dark_plotly_layout$plot_bgcolor,
+          font          = dark_plotly_layout$font,
+          margin        = list(t = 20, b = 50, l = 80, r = 20)
         )
+    })
+
+    # ==========================================================================
+    # PERSISTENT SUMMARY STRIP (Phase 1.4)
+    # ==========================================================================
+    output$summary_strip <- renderUI({
+      req(analysis_data())
+      e <- est()
+      div(
+        class = "summary-strip",
+        div(class = "strip-item",
+          tags$span("Cost: ",     class = "strip-label"),
+          tags$span(paste0("$", format(e$realistic_cost_usd, big.mark = ",")),
+                    class = "strip-value")
+        ),
+        div(class = "strip-item",
+          tags$span("Schedule: ", class = "strip-label"),
+          tags$span(paste0(e$final_schedule_months, " months"),
+                    class = "strip-value")
+        ),
+        div(class = "strip-item",
+          tags$span("Team: ",     class = "strip-label"),
+          tags$span(paste0(e$final_people, " people"),
+                    class = "strip-value")
+        ),
+        div(class = "strip-item",
+          tags$span("CI: ",       class = "strip-label"),
+          tags$span(paste0(
+            "$", format(e$confidence_interval$low,  big.mark = ","), " – ",
+            "$", format(e$confidence_interval$high, big.mark = ",")
+          ), class = "strip-value")
+        ),
+        if (!is.null(e$premium_multiplier) && e$premium_multiplier > 1.0)
+          div(class = "strip-item",
+            tags$span(
+              paste0("⚠ Schedule premium: +",
+                     round((e$premium_multiplier - 1) * 100), "%"),
+              style = "color: #f39c12; font-weight: 600;"
+            )
+          )
+      )
     })
 
     # ==========================================================================
@@ -484,12 +892,10 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
 
     if (ai_available && nzchar(Sys.getenv("OPENAI_API_KEY", ""))) {
 
-      # Build context text from this module's estimate
       ai_context <- reactive({
         e <- est()
         req(e)
 
-        # Language breakdown
         data <- analysis_data()
         lang_info <- ""
         if (!is.null(data$lang_summary)) {
@@ -500,7 +906,9 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
           )
         } else if (!is.null(data$language_mix)) {
           lang_info <- paste(
-            sprintf("%s: %s lines", names(data$language_mix), format(unlist(data$language_mix), big.mark = ",")),
+            sprintf("%s: %s lines",
+                    names(data$language_mix),
+                    format(unlist(data$language_mix), big.mark = ",")),
             collapse = ", "
           )
         }
@@ -515,12 +923,12 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
           ),
           format(e$code_lines, big.mark = ","), lang_info,
           e$params$complexity, e$params$team_experience,
-          format(round(e$realistic_cost_usd), big.mark = ","),
+          format(round(e$realistic_cost_usd),           big.mark = ","),
           e$final_schedule_months,
           e$final_people,
           e$effort_person_months,
-          format(round(e$confidence_interval$low), big.mark = ","),
-          format(round(e$confidence_interval$high), big.mark = ",")
+          format(round(e$confidence_interval$low),       big.mark = ","),
+          format(round(e$confidence_interval$high),      big.mark = ",")
         )
 
         if (!is.null(e$maintenance) && !is.null(e$maintenance$tco)) {
@@ -531,11 +939,9 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
             format(round(e$maintenance$tco), big.mark = ",")
           ))
         }
-
         ctx
       })
 
-      # Chat object, re-created when context changes
       chat_obj <- reactive({
         ctx <- ai_context()
         system_prompt <- paste0(
@@ -566,7 +972,6 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
         )
       })
 
-      # Welcome message (fires once when results appear)
       observe({
         req(est())
         greeting <- paste0(
@@ -583,7 +988,6 @@ analysisResultsServer <- function(id, analysis_data, params, ai_available = FALS
         chat_append("ai_chat", greeting)
       })
 
-      # Handle user messages
       observeEvent(input$ai_chat_user_input, {
         stream <- chat_obj()$stream_async(input$ai_chat_user_input)
         chat_append("ai_chat", stream)

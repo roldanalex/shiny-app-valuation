@@ -106,26 +106,53 @@ comparisonServer <- function(id) {
       s <- get_scenarios()
       if (length(s) == 0) return(NULL)
 
-      comp_data <- data.frame(
-        Scenario = character(),
-        Metric = character(),
-        Value = numeric()
-      )
+      scenario_names <- paste("Scenario", seq_along(s))
+      costs     <- sapply(s, function(e) e$realistic_cost_usd)
+      ci_low    <- sapply(s, function(e) e$confidence_interval$low)
+      ci_high   <- sapply(s, function(e) e$confidence_interval$high)
+      schedules <- sapply(s, function(e) e$final_schedule_months)
+      teams     <- sapply(s, function(e) e$final_people)
+
+      bar_colors <- c("#375a7f", "#00bc8c", "#e74c3c")
+
+      p <- plot_ly()
 
       for (i in seq_along(s)) {
-        scenario_name <- paste("Scenario", i)
-        est <- s[[i]]
-        comp_data <- rbind(comp_data, data.frame(
-          Scenario = rep(scenario_name, 3),
-          Metric = c("Cost (USD)", "Schedule (months)", "Team Size"),
-          Value = c(est$realistic_cost_usd, est$final_schedule_months, est$final_people)
-        ))
+        col <- bar_colors[((i - 1) %% length(bar_colors)) + 1]
+        p <- p %>%
+          add_trace(
+            type        = "bar",
+            name        = scenario_names[i],
+            x           = c("Cost (USD)", "Schedule (months)", "Team Size"),
+            y           = c(costs[i], schedules[i], teams[i]),
+            marker      = list(color = col),
+            error_y     = list(
+              type      = "data",
+              symmetric = FALSE,
+              array     = c(ci_high[i] - costs[i], 0, 0),
+              arrayminus = c(costs[i] - ci_low[i], 0, 0),
+              color     = col,
+              thickness = 2,
+              width     = 6
+            )
+          )
       }
 
-      plot_ly(comp_data, x = comp_data$Scenario, y = comp_data$Value, color = comp_data$Metric, type = 'bar') %>%
-        layout(title = "Scenario Comparison",
-               yaxis = list(title = "Value"),
-               barmode = 'group')
+      p %>%
+        layout(
+          title    = list(text = "Scenario Comparison", font = list(color = "#dee2e6")),
+          yaxis    = list(
+            title     = "Value",
+            color     = "#dee2e6",
+            gridcolor = "rgba(255,255,255,0.1)"
+          ),
+          xaxis    = list(color = "#dee2e6"),
+          barmode  = "group",
+          paper_bgcolor = "transparent",
+          plot_bgcolor  = "transparent",
+          font     = list(color = "#dee2e6"),
+          legend   = list(font = list(color = "#dee2e6"))
+        )
     })
 
     output$comparison_table <- renderDT({

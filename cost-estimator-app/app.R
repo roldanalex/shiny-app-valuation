@@ -54,41 +54,48 @@ setting_help_btn <- function(label, id) {
   )
 }
 
-# Reusable sidebar settings block with help buttons
+# Reusable sidebar settings block with help buttons — "analyze" prefix
 project_settings_sidebar <- function(prefix) {
   tagList(
+    tags$div(
+      class = "sidebar-section",
+      tags$h6("Project Parameters", class = "sidebar-section-label"),
+
+      setting_help_btn("Complexity:", paste0(prefix, "_help_complexity")),
+      selectInput(paste0(prefix, "_complexity"), label = NULL,
+                 choices = c("Low" = "low", "Medium" = "medium",
+                             "High" = "high"),
+                 selected = "medium"),
+
+      setting_help_btn("Team Experience:", paste0(prefix, "_help_team")),
+      sliderInput(paste0(prefix, "_team_exp"), label = NULL,
+                 min = 1, max = 5, value = 4, step = 1),
+
+      setting_help_btn("Reuse Factor:", paste0(prefix, "_help_reuse")),
+      sliderInput(paste0(prefix, "_reuse"), label = NULL,
+                 min = 0.7, max = 1.3, value = 1.0, step = 0.05),
+
+      setting_help_btn("Tool Support Quality:", paste0(prefix, "_help_tools")),
+      sliderInput(paste0(prefix, "_tools"), label = NULL,
+                 min = 0.8, max = 1.2, value = 1.0, step = 0.05)
+    ),
     hr(),
-    h5("Project Settings"),
+    tags$div(
+      class = "sidebar-section",
+      tags$h6("Cost Parameters", class = "sidebar-section-label"),
 
-    setting_help_btn("Complexity:", paste0(prefix, "_help_complexity")),
-    selectInput(paste0(prefix, "_complexity"), label = NULL,
-               choices = c("Low" = "low", "Medium" = "medium",
-                           "High" = "high"),
-               selected = "medium"),
+      setting_help_btn("Average Annual Wage ($):", paste0(prefix, "_help_wage")),
+      numericInput(paste0(prefix, "_wage"), label = NULL,
+                  value = 105000, min = 50000, max = 300000, step = 5000),
 
-    setting_help_btn("Team Experience:", paste0(prefix, "_help_team")),
-    sliderInput(paste0(prefix, "_team_exp"), label = NULL,
-               min = 1, max = 5, value = 4, step = 1),
+      setting_help_btn("Max Team Size:", paste0(prefix, "_help_maxteam")),
+      sliderInput(paste0(prefix, "_max_team"), label = NULL,
+                 min = 1, max = 10, value = 5, step = 1),
 
-    setting_help_btn("Reuse Factor:", paste0(prefix, "_help_reuse")),
-    sliderInput(paste0(prefix, "_reuse"), label = NULL,
-               min = 0.7, max = 1.3, value = 1.0, step = 0.05),
-
-    setting_help_btn("Tool Support Quality:", paste0(prefix, "_help_tools")),
-    sliderInput(paste0(prefix, "_tools"), label = NULL,
-               min = 0.8, max = 1.2, value = 1.0, step = 0.05),
-
-    setting_help_btn("Average Annual Wage ($):", paste0(prefix, "_help_wage")),
-    numericInput(paste0(prefix, "_wage"), label = NULL,
-                value = 105000, min = 50000, max = 300000, step = 5000),
-
-    setting_help_btn("Max Team Size:", paste0(prefix, "_help_maxteam")),
-    sliderInput(paste0(prefix, "_max_team"), label = NULL,
-               min = 1, max = 10, value = 5, step = 1),
-
-    setting_help_btn("Max Schedule (months):", paste0(prefix, "_help_maxsched")),
-    sliderInput(paste0(prefix, "_max_schedule"), label = NULL,
-               min = 3, max = 36, value = 24, step = 3)
+      setting_help_btn("Max Schedule (months):", paste0(prefix, "_help_maxsched")),
+      sliderInput(paste0(prefix, "_max_schedule"), label = NULL,
+                 min = 3, max = 36, value = 24, step = 3)
+    )
   )
 }
 
@@ -97,7 +104,11 @@ advanced_cocomo_sidebar <- function(prefix) {
   tagList(
     hr(),
     tags$details(
-      tags$summary(tags$b("Advanced COCOMO Drivers")),
+      tags$summary(
+        tags$b("Advanced COCOMO Drivers"),
+        tags$span(style = "margin-left: 8px;"),
+        uiOutput(paste0(prefix, "_em_total_badge"), inline = TRUE)
+      ),
       setting_help_btn("Required Reliability:", paste0(prefix, "_help_rely")),
       sliderInput(paste0(prefix, "_rely"), label = NULL,
                  min = 0.82, max = 1.26, value = 1.0, step = 0.01),
@@ -132,7 +143,79 @@ ui <- page_navbar(
   title = "Shiny Cost Estimator",
   id = "nav",
   header = tags$head(
-    tags$link(rel = "icon", type = "image/svg+xml", href = "favicon.svg")
+    tags$link(rel = "icon", type = "image/svg+xml", href = "favicon.svg"),
+    tags$style(HTML("
+      /* ---- Summary strip ---- */
+      .summary-strip {
+        position: sticky; bottom: 0; z-index: 100;
+        background: rgba(22, 26, 33, 0.97);
+        border-top: 1px solid #375a7f;
+        padding: 6px 20px;
+        display: flex; gap: 24px; align-items: center;
+        font-size: 0.85rem;
+      }
+      .summary-strip .strip-item { color: #dee2e6; }
+      .summary-strip .strip-label { color: #888; margin-right: 4px; }
+      .summary-strip .strip-value { color: #00bc8c; font-weight: 600; }
+
+      /* ---- Hero cost box ---- */
+      .confidence-bar-container { margin-top: 6px; }
+      .confidence-bar {
+        height: 4px; border-radius: 2px;
+        background: linear-gradient(to right, rgba(255,255,255,0.2), rgba(255,255,255,0.85), rgba(255,255,255,0.2));
+      }
+      .confidence-labels {
+        display: flex; justify-content: space-between;
+        font-size: 0.7rem; color: rgba(255,255,255,0.8); margin-top: 2px;
+      }
+
+      /* ---- Sidebar section labels ---- */
+      .sidebar-section-label {
+        font-size: 0.68rem; text-transform: uppercase;
+        letter-spacing: 0.08em; color: #888; margin: 12px 0 4px;
+      }
+
+      /* ---- Result card accent ---- */
+      .result-card { border-left: 3px solid #00bc8c !important; }
+      .warning-card { border-left: 3px solid #f39c12 !important; }
+
+      /* ---- Count-up animation ---- */
+      @keyframes countup { from { opacity: 0.3; } to { opacity: 1; } }
+      .value-box .value { animation: countup 0.4s ease-out; }
+
+      /* ---- EM total badge ---- */
+      .em-badge {
+        display: inline-block; padding: 1px 6px;
+        border-radius: 10px; font-size: 0.72rem;
+        font-weight: 600; vertical-align: middle;
+      }
+      .em-neutral { background: #444; color: #ccc; }
+      .em-green   { background: #00bc8c22; color: #00bc8c; border: 1px solid #00bc8c55; }
+      .em-red     { background: #e74c3c22; color: #e74c3c; border: 1px solid #e74c3c55; }
+
+      /* ---- Input method radio buttons ---- */
+      .input-method-bar {
+        padding: 10px 16px 6px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        margin-bottom: 4px;
+      }
+      .input-method-bar .radio-inline { font-size: 0.9rem; }
+
+      /* ---- Demo card on Home ---- */
+      .demo-card-stat {
+        text-align: center;
+        padding: 12px 8px;
+      }
+      .demo-card-stat .stat-val {
+        font-size: 1.6rem; font-weight: 700; color: #00bc8c;
+      }
+      .demo-card-stat .stat-lbl {
+        font-size: 0.8rem; color: #aaa; margin-top: 2px;
+      }
+
+      /* ---- Sidebar wider ---- */
+      .bslib-sidebar-layout > .sidebar { min-width: 280px; }
+    "))
   ),
   theme = bs_theme(
     version = 5,
@@ -145,154 +228,140 @@ ui <- page_navbar(
   footer = tags$footer(
     class = "bg-dark text-light py-2 px-3 mt-auto",
     style = "display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;",
-    tags$span("Shiny Cost Estimator v1.0.1"),
+    tags$span("Shiny Cost Estimator v1.1.0"),
     tags$span("Created by Alexis Roldan - 2026")
   ),
 
-  # Home tab
+  # ── Home tab (Live Demo) ──────────────────────────────────────────────────
   nav_panel(
     title = "Home",
     icon = icon("home"),
     layout_column_wrap(
       width = 1,
       card(
-        card_header("Welcome to the Shiny Cost Estimator"),
-        card_body(
+        card_header(
           tags$div(
-            style = "font-size: 16px;",
-            h3("Quantify Your Development Investment"),
-            p("This tool uses the industry-standard COCOMO II model to estimate the cost, schedule,
-              and team size required for your R Shiny applications and data science projects."),
-
-            h4("Three Analysis Modes:"),
-            tags$ul(
-              if (!is_deployed) tags$li(tags$b("Local Folder:"), " Analyze projects on your computer (best for local use)"),
-              tags$li(tags$b("ZIP Upload:"), " Upload a repository ZIP file (works anywhere)"),
-              tags$li(tags$b("Manual Entry:"), " Quick estimates without code analysis")
-            ),
-
-            h4("Key Features:"),
-            tags$ul(
-              tags$li("Real-time cost and schedule estimation with confidence intervals"),
-              tags$li("COCOMO II waterfall cost breakdown"),
-              tags$li("Maintenance cost and Total Cost of Ownership (TCO) projections"),
-              tags$li("Advanced COCOMO II cost drivers (reliability, complexity, reusability, etc.)"),
-              tags$li("Scenario comparison (side-by-side)"),
-              tags$li("Sensitivity analysis with interactive charts"),
-              tags$li("Shareable URLs with pre-filled parameters")
-            ),
-
-            hr(),
-            h4("Getting Started:"),
-            p("Choose an analysis mode below or from the tabs above."),
-
-            if (!is_deployed) actionButton("start_local", "Start Local Analysis",
-                        icon = icon("folder-open"),
-                        class = "btn-primary btn-lg me-2"),
-            actionButton("start_zip", "Upload ZIP",
-                        icon = icon("upload"),
-                        class = "btn-success btn-lg me-2"),
-            actionButton("start_manual", "Manual Entry",
-                        icon = icon("edit"),
-                        class = "btn-info btn-lg")
+            style = "display: flex; justify-content: space-between; align-items: center;",
+            tags$span("COCOMO II Cost Estimator — Live Demo"),
+            tags$small("10,000 lines · Medium complexity · Team exp 3", class = "text-muted")
+          )
+        ),
+        card_body(
+          uiOutput("demo_stats"),
+          hr(),
+          h4("Quantify Your Development Investment"),
+          p(
+            "This tool uses the industry-standard COCOMO II model to estimate cost, schedule,",
+            " and team size for R Shiny and data science projects."
+          ),
+          tags$ul(
+            if (!is_deployed) tags$li(tags$b("Local Folder:"), " Scan a project directory directly"),
+            tags$li(tags$b("ZIP Upload:"), " Upload a repository ZIP (works anywhere)"),
+            tags$li(tags$b("Manual Entry:"), " Quick estimates from known line counts")
+          ),
+          br(),
+          div(
+            style = "display: flex; gap: 12px; flex-wrap: wrap;",
+            actionButton("go_analyze", "Analyze Your Project →",
+                         class = "btn-success btn-lg",
+                         style = "width: auto;",
+                         icon = icon("arrow-right")),
+            actionButton("go_compare", "Compare Scenarios",
+                         class = "btn-outline-secondary btn-lg",
+                         style = "width: auto;",
+                         icon = icon("balance-scale"))
           )
         )
       )
     )
   ),
 
-  # Local Folder tab (hidden when deployed to shinyapps.io)
-  if (!is_deployed) nav_panel(
-    title = "Local Folder",
-    icon = icon("folder-open"),
+  # ── Analyze tab (merged Local / ZIP / Manual) ─────────────────────────────
+  nav_panel(
+    title = "Analyze",
+    icon = icon("chart-bar"),
     layout_sidebar(
       sidebar = sidebar(
+        open = "open",
+        id = "analyze_sidebar",
         title = "Analysis Parameters",
         width = 300,
 
-        textInput("local_path", "Repository Path:",
-                 value = getwd(),
-                 placeholder = "/path/to/your/repo"),
-        actionButton("browse_folder", "Browse Folder", icon = icon("search"),
-                    class = "btn-sm btn-secondary mb-3"),
+        # Input method selector
+        div(
+          class = "input-method-bar",
+          radioButtons(
+            "input_method", NULL,
+            choices = {
+              if (!is_deployed)
+                c("Local Folder" = "local", "ZIP Upload" = "zip", "Manual Entry" = "manual")
+              else
+                c("ZIP Upload" = "zip", "Manual Entry" = "manual")
+            },
+            selected = "manual",
+            inline = TRUE
+          )
+        ),
 
-        project_settings_sidebar("local"),
-        advanced_cocomo_sidebar("local"),
+        # ── Local-only inputs ──
+        if (!is_deployed)
+          conditionalPanel(
+            condition = "input.input_method == 'local'",
+            textInput("local_path", "Repository Path:",
+                     value = getwd(),
+                     placeholder = "/path/to/your/repo"),
+            actionButton("browse_folder", "Browse Folder", icon = icon("search"),
+                        class = "btn-sm btn-secondary mb-3")
+          ),
+
+        # ── ZIP inputs ──
+        conditionalPanel(
+          condition = "input.input_method == 'zip'",
+          fileInput("zip_file", "Upload Repository ZIP:",
+                   accept = c(".zip"),
+                   buttonLabel = "Browse...",
+                   placeholder = "No file selected"),
+          tags$small(class = "text-muted", "Max file size: 50MB")
+        ),
+
+        # ── Manual inputs ──
+        conditionalPanel(
+          condition = "input.input_method == 'manual'",
+          tags$div(
+            class = "sidebar-section",
+            tags$h6("Code Lines by Language", class = "sidebar-section-label"),
+            numericInput("manual_r",      "R:",          value = 0, min = 0),
+            numericInput("manual_python", "Python:",     value = 0, min = 0),
+            numericInput("manual_js",     "JavaScript:", value = 0, min = 0),
+            numericInput("manual_sql",    "SQL:",        value = 0, min = 0),
+            numericInput("manual_css",    "CSS:",        value = 0, min = 0),
+            numericInput("manual_other",  "Other:",      value = 0, min = 0)
+          )
+        ),
+
+        # ── Shared project settings ──
+        project_settings_sidebar("analyze"),
+        advanced_cocomo_sidebar("analyze"),
 
         hr(),
-        actionButton("analyze_local", "Analyze Repository",
+        actionButton("run_analysis", "Run Analysis",
                     icon = icon("play"),
                     class = "btn-primary btn-lg w-100")
       ),
-      analysisResultsUI("local_results", ai_available = ai_available)
+
+      # Results area
+      analysisResultsUI("analyze_results", ai_available = ai_available)
     )
   ),
 
-  # ZIP Upload tab
-  nav_panel(
-    title = "ZIP Upload",
-    icon = icon("upload"),
-    layout_sidebar(
-      sidebar = sidebar(
-        title = "Upload & Configure",
-        width = 300,
-
-        fileInput("zip_file", "Upload Repository ZIP:",
-                 accept = c(".zip"),
-                 buttonLabel = "Browse...",
-                 placeholder = "No file selected"),
-
-        tags$small(class = "text-muted", "Max file size: 50MB"),
-
-        project_settings_sidebar("zip"),
-        advanced_cocomo_sidebar("zip"),
-
-        hr(),
-        actionButton("analyze_zip", "Analyze ZIP",
-                    icon = icon("chart-bar"),
-                    class = "btn-primary btn-lg w-100")
-      ),
-      analysisResultsUI("zip_results", ai_available = ai_available)
-    )
-  ),
-
-  # Manual Entry tab
-  nav_panel(
-    title = "Manual Entry",
-    icon = icon("edit"),
-    layout_sidebar(
-      sidebar = sidebar(
-        title = "Project Configuration",
-        width = 300,
-
-        h5("Code Lines by Language"),
-        numericInput("manual_r", "R:", value = 0, min = 0),
-        numericInput("manual_python", "Python:", value = 0, min = 0),
-        numericInput("manual_js", "JavaScript:", value = 0, min = 0),
-        numericInput("manual_sql", "SQL:", value = 0, min = 0),
-        numericInput("manual_css", "CSS:", value = 0, min = 0),
-        numericInput("manual_other", "Other:", value = 0, min = 0),
-
-        project_settings_sidebar("manual"),
-        advanced_cocomo_sidebar("manual"),
-
-        hr(),
-        actionButton("calculate_manual", "Calculate Estimate",
-                    icon = icon("calculator"),
-                    class = "btn-primary btn-lg w-100")
-      ),
-      analysisResultsUI("manual_results", ai_available = ai_available)
-    )
-  ),
-
-  # Compare tab
+  # ── Compare tab ───────────────────────────────────────────────────────────
   nav_panel(
     title = "Compare",
     icon = icon("balance-scale"),
     comparisonUI("compare")
   ),
 
-  # Export tab
+  # ── Export tab ────────────────────────────────────────────────────────────
   nav_panel(
     title = "Export",
     icon = icon("download"),
@@ -315,32 +384,59 @@ ui <- page_navbar(
 server <- function(input, output, session) {
 
   # Reactive values to store analysis results
-  results <- reactiveValues(
-    local = NULL,
-    zip = NULL,
-    manual = NULL
-  )
+  results <- reactiveValues(analyze = NULL)
 
   # ============================================================================
-  # HOME TAB - Navigation buttons (fixed: plain text tab names)
+  # HOME TAB — Live Demo
   # ============================================================================
 
-  if (!is_deployed) {
-    observeEvent(input$start_local, {
-      nav_select("nav", selected = "Local Folder")
-    })
-  }
-
-  observeEvent(input$start_zip, {
-    nav_select("nav", selected = "ZIP Upload")
+  demo_est <- local({
+    tryCatch(
+      estimate_shiny_cost(
+        code_lines   = 10000,
+        complexity   = "medium",
+        team_experience = 3,
+        reuse_factor = 1.0,
+        tool_support = 1.0,
+        avg_wage     = 105000,
+        max_team_size = 5,
+        max_schedule_months = 24
+      ),
+      error = function(e) NULL
+    )
   })
 
-  observeEvent(input$start_manual, {
-    nav_select("nav", selected = "Manual Entry")
+  output$demo_stats <- renderUI({
+    req(!is.null(demo_est))
+    e <- demo_est
+    layout_column_wrap(
+      width = 1/4,
+      div(class = "demo-card-stat",
+        div(class = "stat-val", paste0("$", format(e$realistic_cost_usd, big.mark = ","))),
+        div(class = "stat-lbl", "Estimated Cost")
+      ),
+      div(class = "demo-card-stat",
+        div(class = "stat-val", paste0(e$final_schedule_months, " mo")),
+        div(class = "stat-lbl", "Schedule")
+      ),
+      div(class = "demo-card-stat",
+        div(class = "stat-val", paste0(e$final_people, " people")),
+        div(class = "stat-lbl", "Team Size")
+      ),
+      div(class = "demo-card-stat",
+        div(class = "stat-val",
+            paste0("$", format(e$confidence_interval$low, big.mark = ","),
+                   " – $", format(e$confidence_interval$high, big.mark = ","))),
+        div(class = "stat-lbl", "70% Confidence Range")
+      )
+    )
   })
 
+  observeEvent(input$go_analyze, nav_select("nav", selected = "Analyze"))
+  observeEvent(input$go_compare, nav_select("nav", selected = "Compare"))
+
   # ============================================================================
-  # NAVBAR BUTTONS - User Guide and Release Notes modals
+  # NAVBAR BUTTONS — User Guide and Release Notes modals
   # ============================================================================
 
   observeEvent(input$btn_user_guide, {
@@ -362,7 +458,7 @@ server <- function(input, output, session) {
         style = "background: #fff; color: #212529; padding: 20px; border-radius: 6px;",
         includeMarkdown("markdown/release_notes.md")
       ),
-      title = "Release Notes - v1.0.1",
+      title = "Release Notes - v1.1.0",
       size = "l",
       easyClose = TRUE,
       footer = modalButton("Close")
@@ -370,7 +466,7 @@ server <- function(input, output, session) {
   })
 
   # ============================================================================
-  # HELP BUTTONS - modals for project settings
+  # HELP BUTTONS — modals for project settings
   # ============================================================================
 
   help_content <- list(
@@ -617,306 +713,275 @@ server <- function(input, output, session) {
     )
   )
 
-  # Register help button handlers for all three tab prefixes
-  lapply(c("local", "zip", "manual"), function(prefix) {
-    lapply(names(help_content), function(key) {
-      btn_id <- paste0(prefix, "_help_", key)
-      hc <- help_content[[key]]
-      observeEvent(input[[btn_id]], {
-        showModal(modalDialog(
-          tags$div(
-            style = paste0(
-              "background: #fff; color: #212529;",
-              " padding: 15px; border-radius: 6px;"
-            ),
-            hc$body
+  # Register help button handlers for "analyze" prefix
+  lapply(names(help_content), function(key) {
+    btn_id <- paste0("analyze_help_", key)
+    hc <- help_content[[key]]
+    observeEvent(input[[btn_id]], {
+      showModal(modalDialog(
+        tags$div(
+          style = paste0(
+            "background: #fff; color: #212529;",
+            " padding: 15px; border-radius: 6px;"
           ),
-          title = hc$title,
-          size = "m",
-          easyClose = TRUE,
-          footer = modalButton("Close")
-        ))
-      })
+          hc$body
+        ),
+        title = hc$title,
+        size = "m",
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
     })
+  })
+
+  # ============================================================================
+  # EM_TOTAL BADGE (for Advanced COCOMO Drivers summary line)
+  # ============================================================================
+
+  output$analyze_em_total_badge <- renderUI({
+    rely <- if (!is.null(input$analyze_rely)) input$analyze_rely else 1.0
+    cplx <- if (!is.null(input$analyze_cplx)) input$analyze_cplx else 1.0
+    ruse <- if (!is.null(input$analyze_ruse)) input$analyze_ruse else 1.0
+    pcon <- if (!is.null(input$analyze_pcon)) input$analyze_pcon else 1.0
+    apex <- if (!is.null(input$analyze_apex)) input$analyze_apex else 1.0
+    em  <- rely * cplx * ruse * pcon * apex
+    cls <- if (abs(em - 1.0) < 0.01) "em-badge em-neutral"
+           else if (em < 1.0)        "em-badge em-green"
+           else                      "em-badge em-red"
+    tags$span(class = cls, sprintf("EM: %.2fx", em))
   })
 
   # ============================================================================
   # HELPER: build params list from inputs
   # ============================================================================
 
-  local_params <- reactive({
+  analyze_params <- reactive({
     list(
-      complexity = input$local_complexity,
-      team_exp = input$local_team_exp,
-      reuse = input$local_reuse,
-      tools = input$local_tools,
-      wage = input$local_wage,
-      max_team = input$local_max_team,
-      max_schedule = input$local_max_schedule,
-      rely = input$local_rely,
-      cplx = input$local_cplx,
-      ruse = input$local_ruse,
-      pcon = input$local_pcon,
-      apex = input$local_apex,
-      maintenance_rate = input$local_maint_rate,
-      maintenance_years = input$local_maint_years
-    )
-  })
-
-  zip_params <- reactive({
-    list(
-      complexity = input$zip_complexity,
-      team_exp = input$zip_team_exp,
-      reuse = input$zip_reuse,
-      tools = input$zip_tools,
-      wage = input$zip_wage,
-      max_team = input$zip_max_team,
-      max_schedule = input$zip_max_schedule,
-      rely = input$zip_rely,
-      cplx = input$zip_cplx,
-      ruse = input$zip_ruse,
-      pcon = input$zip_pcon,
-      apex = input$zip_apex,
-      maintenance_rate = input$zip_maint_rate,
-      maintenance_years = input$zip_maint_years
-    )
-  })
-
-  manual_params <- reactive({
-    list(
-      complexity = input$manual_complexity,
-      team_exp = input$manual_team_exp,
-      reuse = input$manual_reuse,
-      tools = input$manual_tools,
-      wage = input$manual_wage,
-      max_team = input$manual_max_team,
-      max_schedule = input$manual_max_schedule,
-      rely = input$manual_rely,
-      cplx = input$manual_cplx,
-      ruse = input$manual_ruse,
-      pcon = input$manual_pcon,
-      apex = input$manual_apex,
-      maintenance_rate = input$manual_maint_rate,
-      maintenance_years = input$manual_maint_years
+      complexity        = input$analyze_complexity,
+      team_exp          = input$analyze_team_exp,
+      reuse             = input$analyze_reuse,
+      tools             = input$analyze_tools,
+      wage              = input$analyze_wage,
+      max_team          = input$analyze_max_team,
+      max_schedule      = input$analyze_max_schedule,
+      rely              = input$analyze_rely,
+      cplx              = input$analyze_cplx,
+      ruse              = input$analyze_ruse,
+      pcon              = input$analyze_pcon,
+      apex              = input$analyze_apex,
+      maintenance_rate  = input$analyze_maint_rate,
+      maintenance_years = input$analyze_maint_years
     )
   })
 
   # ============================================================================
-  # LOCAL FOLDER ANALYSIS
+  # BROWSE FOLDER (Local only)
   # ============================================================================
 
-  observeEvent(input$browse_folder, {
-    path <- tryCatch({
-      os_type <- Sys.info()[["sysname"]]
+  if (!is_deployed) {
+    observeEvent(input$browse_folder, {
+      path <- tryCatch({
+        os_type <- Sys.info()[["sysname"]]
 
-      if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
-        selected <- rstudioapi::selectDirectory(caption = "Select Repository Folder")
-        if (!is.null(selected) && nzchar(selected)) return(selected)
-      }
-
-      if (os_type == "Darwin") {
-        cmd <- "osascript -e 'POSIX path of (choose folder with prompt \"Select Repository Folder\")'"
-        res <- suppressWarnings(system(cmd, intern = TRUE, ignore.stderr = TRUE))
-        if (length(res) > 0 && nzchar(res[1])) {
-          selected <- sub("/$", "", trimws(res[1]))
-          if (nzchar(selected)) return(selected)
+        if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
+          selected <- rstudioapi::selectDirectory(caption = "Select Repository Folder")
+          if (!is.null(selected) && nzchar(selected)) return(selected)
         }
-      }
 
-      if (requireNamespace("tcltk", quietly = TRUE)) {
-        selected <- tcltk::tk_choose.dir(caption = "Select Repository Folder")
-        if (!is.null(selected) && nzchar(selected)) return(selected)
-      }
+        if (os_type == "Darwin") {
+          cmd <- "osascript -e 'POSIX path of (choose folder with prompt \"Select Repository Folder\")'"
+          res <- suppressWarnings(system(cmd, intern = TRUE, ignore.stderr = TRUE))
+          if (length(res) > 0 && nzchar(res[1])) {
+            selected <- sub("/$", "", trimws(res[1]))
+            if (nzchar(selected)) return(selected)
+          }
+        }
 
-      stop("No folder selection method succeeded")
-    }, error = function(e) {
-      showNotification("Folder browser not available. Please enter the path manually.",
-                      type = "warning", duration = 8)
-      return(NULL)
-    })
+        if (requireNamespace("tcltk", quietly = TRUE)) {
+          selected <- tcltk::tk_choose.dir(caption = "Select Repository Folder")
+          if (!is.null(selected) && nzchar(selected)) return(selected)
+        }
 
-    if (!is.null(path) && nzchar(path)) {
-      updateTextInput(session, "local_path", value = path)
-      showNotification("Folder selected!", type = "message", duration = 3)
-    }
-  })
-
-  observeEvent(input$analyze_local, {
-    req(input$local_path)
-
-    if (!dir.exists(input$local_path)) {
-      showNotification("Directory does not exist!", type = "error")
-      return(NULL)
-    }
-
-    tryCatch({
-      withProgress(message = "Analyzing repository...", value = 0, {
-        capture.output({
-          analysis <- analyze_repo_code(
-            path = input$local_path,
-            avg_wage = input$local_wage,
-            complexity = input$local_complexity,
-            team_experience = input$local_team_exp,
-            reuse_factor = input$local_reuse,
-            tool_support = input$local_tools,
-            max_team_size = input$local_max_team,
-            max_schedule_months = input$local_max_schedule,
-            progress_callback = function(current, total) {
-              setProgress(
-                value = current / total,
-                detail = paste0("File ", current, " of ", total)
-              )
-            }
-          )
-        })
-        results$local <- list(lang_summary = analysis)
+        stop("No folder selection method succeeded")
+      }, error = function(e) {
+        showNotification("Folder browser not available. Please enter the path manually.",
+                        type = "warning", duration = 8)
+        return(NULL)
       })
-      showNotification("Analysis complete!", type = "message", duration = 3)
-    }, error = function(e) {
-      showNotification(paste("Error:", e$message), type = "error", duration = 10)
-    })
-  })
 
-  local_data <- reactive({
-    req(results$local)
-    results$local
-  })
-
-  analysisResultsServer("local_results", local_data, local_params, ai_available = ai_available)
-
-  # ============================================================================
-  # ZIP UPLOAD ANALYSIS
-  # ============================================================================
-
-  # Shared analysis function for ZIP files
-  run_zip_analysis <- function() {
-    req(input$zip_file)
-
-    # Security: check file size (50MB limit)
-    if (file.info(input$zip_file$datapath)$size > 50 * 1024 * 1024) {
-      showNotification("File exceeds 50MB limit.", type = "error")
-      return(NULL)
-    }
-
-    tryCatch({
-      withProgress(message = "Analyzing ZIP contents...", value = 0, {
-        # Use isolated temp directory instead of shared tempdir()
-        temp_dir <- tempfile(pattern = "zip_analysis_")
-        dir.create(temp_dir)
-        on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
-
-        setProgress(value = 0.1, detail = "Extracting ZIP file...")
-        unzip(input$zip_file$datapath, exdir = temp_dir)
-
-        # Validate: files were extracted
-        extracted_files <- list.files(temp_dir, recursive = TRUE, full.names = TRUE)
-        if (length(extracted_files) == 0) {
-          showNotification("Could not extract any files from the ZIP archive.", type = "error")
-          return(NULL)
-        }
-
-        # Validate: no path traversal
-        relative_paths <- gsub(paste0("^", normalizePath(temp_dir)), "", normalizePath(extracted_files))
-        if (any(grepl("\\.\\.", relative_paths))) {
-          showNotification("ZIP contains invalid paths (path traversal detected).", type = "error")
-          return(NULL)
-        }
-
-        # Find the actual repo folder (filter out __MACOSX and hidden directories)
-        extracted_folders <- list.dirs(temp_dir, recursive = FALSE)
-        extracted_folders <- extracted_folders[!grepl("^__MACOSX$", basename(extracted_folders))]
-        extracted_folders <- extracted_folders[!grepl("^\\.", basename(extracted_folders))]
-        repo_path <- if (length(extracted_folders) > 0) extracted_folders[1] else temp_dir
-
-        setProgress(value = 0.2, detail = "Analyzing files...")
-        capture.output({
-          analysis <- analyze_repo_code(
-            path = repo_path,
-            avg_wage = input$zip_wage,
-            complexity = input$zip_complexity,
-            team_experience = input$zip_team_exp,
-            reuse_factor = input$zip_reuse,
-            tool_support = input$zip_tools,
-            max_team_size = input$zip_max_team,
-            max_schedule_months = input$zip_max_schedule,
-            progress_callback = function(current, total) {
-              setProgress(
-                value = 0.2 + 0.8 * (current / total),
-                detail = paste0("File ", current, " of ", total)
-              )
-            }
-          )
-        })
-
-        # Handle case where no code files were found
-        if (is.null(analysis) || nrow(analysis) == 0 || sum(analysis$Code) == 0) {
-          showNotification(
-            "No code files found in the ZIP archive. Please ensure it contains source code files.",
-            type = "warning", duration = 8
-          )
-          return(NULL)
-        }
-
-        results$zip <- list(lang_summary = analysis)
-      })
-      showNotification("ZIP analysis complete!", type = "message", duration = 3)
-    }, error = function(e) {
-      showNotification(paste("Error:", e$message), type = "error", duration = 10)
+      if (!is.null(path) && nzchar(path)) {
+        updateTextInput(session, "local_path", value = path)
+        showNotification("Folder selected!", type = "message", duration = 3)
+      }
     })
   }
 
-  observeEvent(input$analyze_zip, {
-    run_zip_analysis()
-  })
-
-  zip_data <- reactive({
-    req(results$zip)
-    results$zip
-  })
-
-  analysisResultsServer("zip_results", zip_data, zip_params, ai_available = ai_available)
-
   # ============================================================================
-  # MANUAL ENTRY
+  # SINGLE ANALYSIS RUNNER (branches on input_method)
   # ============================================================================
 
-  observeEvent(input$calculate_manual, {
-    language_mix <- list(
-      "R" = input$manual_r,
-      "Python" = input$manual_python,
-      "JavaScript" = input$manual_js,
-      "SQL" = input$manual_sql,
-      "CSS" = input$manual_css,
-      "Other" = input$manual_other
-    )
+  observeEvent(input$run_analysis, {
+    method <- input$input_method
 
-    language_mix <- language_mix[language_mix > 0]
+    if (method == "local") {
+      # ── Local folder ──
+      req(input$local_path)
+      if (!dir.exists(input$local_path)) {
+        showNotification("Directory does not exist!", type = "error")
+        return(NULL)
+      }
+      tryCatch({
+        withProgress(message = "Analyzing repository...", value = 0, {
+          capture.output({
+            analysis <- analyze_repo_code(
+              path              = input$local_path,
+              avg_wage          = input$analyze_wage,
+              complexity        = input$analyze_complexity,
+              team_experience   = input$analyze_team_exp,
+              reuse_factor      = input$analyze_reuse,
+              tool_support      = input$analyze_tools,
+              max_team_size     = input$analyze_max_team,
+              max_schedule_months = input$analyze_max_schedule,
+              progress_callback = function(current, total) {
+                setProgress(
+                  value  = current / total,
+                  detail = paste0("File ", current, " of ", total)
+                )
+              }
+            )
+          })
+          results$analyze <- list(lang_summary = analysis)
+        })
+        showNotification("Analysis complete!", type = "message", duration = 3)
+      }, error = function(e) {
+        showNotification(paste("Error:", e$message), type = "error", duration = 10)
+      })
 
-    if (length(language_mix) == 0) {
-      showNotification("Please enter at least one code line count.", type = "warning")
-      return(NULL)
+    } else if (method == "zip") {
+      # ── ZIP upload ──
+      req(input$zip_file)
+      if (file.info(input$zip_file$datapath)$size > 50 * 1024 * 1024) {
+        showNotification("File exceeds 50MB limit.", type = "error")
+        return(NULL)
+      }
+      tryCatch({
+        withProgress(message = "Analyzing ZIP contents...", value = 0, {
+          temp_dir <- tempfile(pattern = "zip_analysis_")
+          dir.create(temp_dir)
+          on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+
+          setProgress(value = 0.1, detail = "Extracting ZIP file...")
+          unzip(input$zip_file$datapath, exdir = temp_dir)
+
+          extracted_files <- list.files(temp_dir, recursive = TRUE, full.names = TRUE)
+          if (length(extracted_files) == 0) {
+            showNotification(
+              "Could not extract any files from the ZIP archive.",
+              type = "error"
+            )
+            return(NULL)
+          }
+
+          relative_paths <- gsub(
+            paste0("^", normalizePath(temp_dir)), "",
+            normalizePath(extracted_files)
+          )
+          if (any(grepl("\\.\\.", relative_paths))) {
+            showNotification(
+              "ZIP contains invalid paths (path traversal detected).",
+              type = "error"
+            )
+            return(NULL)
+          }
+
+          extracted_folders <- list.dirs(temp_dir, recursive = FALSE)
+          extracted_folders <- extracted_folders[
+            !grepl("^__MACOSX$", basename(extracted_folders))
+          ]
+          extracted_folders <- extracted_folders[
+            !grepl("^\\.", basename(extracted_folders))
+          ]
+          repo_path <- if (length(extracted_folders) > 0) extracted_folders[1] else temp_dir
+
+          setProgress(value = 0.2, detail = "Analyzing files...")
+          capture.output({
+            analysis <- analyze_repo_code(
+              path              = repo_path,
+              avg_wage          = input$analyze_wage,
+              complexity        = input$analyze_complexity,
+              team_experience   = input$analyze_team_exp,
+              reuse_factor      = input$analyze_reuse,
+              tool_support      = input$analyze_tools,
+              max_team_size     = input$analyze_max_team,
+              max_schedule_months = input$analyze_max_schedule,
+              progress_callback = function(current, total) {
+                setProgress(
+                  value  = 0.2 + 0.8 * (current / total),
+                  detail = paste0("File ", current, " of ", total)
+                )
+              }
+            )
+          })
+
+          if (is.null(analysis) || nrow(analysis) == 0 || sum(analysis$Code) == 0) {
+            showNotification(
+              "No code files found in the ZIP archive. Please ensure it contains source code files.",
+              type = "warning", duration = 8
+            )
+            return(NULL)
+          }
+
+          results$analyze <- list(lang_summary = analysis)
+        })
+        showNotification("ZIP analysis complete!", type = "message", duration = 3)
+      }, error = function(e) {
+        showNotification(paste("Error:", e$message), type = "error", duration = 10)
+      })
+
+    } else {
+      # ── Manual entry ──
+      language_mix <- list(
+        "R"          = input$manual_r,
+        "Python"     = input$manual_python,
+        "JavaScript" = input$manual_js,
+        "SQL"        = input$manual_sql,
+        "CSS"        = input$manual_css,
+        "Other"      = input$manual_other
+      )
+      language_mix <- language_mix[language_mix > 0]
+
+      if (length(language_mix) == 0) {
+        showNotification("Please enter at least one code line count.", type = "warning")
+        return(NULL)
+      }
+
+      results$analyze <- list(
+        language_mix = language_mix,
+        params = list(
+          complexity  = input$analyze_complexity,
+          team_exp    = input$analyze_team_exp,
+          reuse       = input$analyze_reuse,
+          tools       = input$analyze_tools,
+          wage        = input$analyze_wage
+        )
+      )
+      showNotification("Calculation complete!", type = "message", duration = 3)
     }
 
-    results$manual <- list(
-      language_mix = language_mix,
-      params = list(
-        complexity = input$manual_complexity,
-        team_exp = input$manual_team_exp,
-        reuse = input$manual_reuse,
-        tools = input$manual_tools,
-        wage = input$manual_wage
-      )
+    # Collapse sidebar after analysis so results take full width
+    tryCatch(
+      sidebar_toggle("analyze_sidebar", open = FALSE, session = session),
+      error = function(e) NULL
     )
-
-    showNotification("Calculation complete!", type = "message", duration = 3)
   })
 
-  manual_data <- reactive({
-    req(results$manual)
-    results$manual
+  # Analysis data reactive
+  analyze_data <- reactive({
+    req(results$analyze)
+    results$analyze
   })
 
-  analysisResultsServer("manual_results", manual_data, manual_params, ai_available = ai_available)
+  analysisResultsServer("analyze_results", analyze_data, analyze_params, ai_available = ai_available)
 
   # ============================================================================
   # COMPARISON & EXPORT MODULES
@@ -933,14 +998,17 @@ server <- function(input, output, session) {
     query <- parseQueryString(session$clientData$url_search)
 
     if (!is.null(query$mode) && query$mode == "manual") {
-      if (!is.null(query$r)) updateNumericInput(session, "manual_r", value = as.numeric(query$r))
-      if (!is.null(query$py)) updateNumericInput(session, "manual_python", value = as.numeric(query$py))
-      if (!is.null(query$js)) updateNumericInput(session, "manual_js", value = as.numeric(query$js))
-      if (!is.null(query$sql)) updateNumericInput(session, "manual_sql", value = as.numeric(query$sql))
-      if (!is.null(query$complexity)) updateSelectInput(session, "manual_complexity", selected = query$complexity)
-      if (!is.null(query$team)) updateSliderInput(session, "manual_team_exp", value = as.numeric(query$team))
+      if (!is.null(query$r))   updateNumericInput(session, "manual_r",      value = as.numeric(query$r))
+      if (!is.null(query$py))  updateNumericInput(session, "manual_python", value = as.numeric(query$py))
+      if (!is.null(query$js))  updateNumericInput(session, "manual_js",     value = as.numeric(query$js))
+      if (!is.null(query$sql)) updateNumericInput(session, "manual_sql",    value = as.numeric(query$sql))
+      if (!is.null(query$complexity))
+        updateSelectInput(session, "analyze_complexity", selected = query$complexity)
+      if (!is.null(query$team))
+        updateSliderInput(session, "analyze_team_exp",   value = as.numeric(query$team))
 
-      nav_select("nav", selected = "Manual Entry")
+      updateRadioButtons(session, "input_method", selected = "manual")
+      nav_select("nav", selected = "Analyze")
       showNotification("Pre-filled from shared URL!", type = "message", duration = 5)
     }
   })

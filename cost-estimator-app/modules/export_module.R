@@ -39,14 +39,15 @@ exportServer <- function(id, results, session_data) {
   moduleServer(id, function(input, output, session) {
 
     observeEvent(input$generate_url, {
-      if (!is.null(results$manual) && !is.null(results$manual$params)) {
-        p <- results$manual$params
+      r <- results$analyze
+      if (!is.null(r) && !is.null(r$language_mix) && !is.null(r$params)) {
+        p <- r$params
         query_string <- paste0(
           "?mode=manual",
-          "&r=", if (!is.null(results$manual$language_mix[["R"]])) results$manual$language_mix[["R"]] else 0,
-          "&py=", if (!is.null(results$manual$language_mix[["Python"]])) results$manual$language_mix[["Python"]] else 0,
-          "&js=", if (!is.null(results$manual$language_mix[["JavaScript"]])) results$manual$language_mix[["JavaScript"]] else 0,
-          "&sql=", if (!is.null(results$manual$language_mix[["SQL"]])) results$manual$language_mix[["SQL"]] else 0,
+          "&r=",   if (!is.null(r$language_mix[["R"]]))          r$language_mix[["R"]]          else 0,
+          "&py=",  if (!is.null(r$language_mix[["Python"]]))      r$language_mix[["Python"]]      else 0,
+          "&js=",  if (!is.null(r$language_mix[["JavaScript"]])) r$language_mix[["JavaScript"]] else 0,
+          "&sql=", if (!is.null(r$language_mix[["SQL"]]))         r$language_mix[["SQL"]]         else 0,
           "&complexity=", p$complexity,
           "&team=", p$team_exp,
           "&reuse=", p$reuse,
@@ -79,7 +80,10 @@ exportServer <- function(id, results, session_data) {
 
         showNotification("Shareable URL generated!", type = "message", duration = 3)
       } else {
-        showNotification("Please complete a manual analysis first.", type = "warning")
+        showNotification(
+          "Please run a Manual Entry analysis first to generate a shareable URL.",
+          type = "warning"
+        )
       }
     })
 
@@ -88,12 +92,12 @@ exportServer <- function(id, results, session_data) {
         paste0("cost_estimate_", format(Sys.Date(), "%Y%m%d"), ".csv")
       },
       content = function(file) {
-        if (!is.null(results$local)) {
-          write.csv(results$local$lang_summary, file, row.names = FALSE)
-        } else if (!is.null(results$zip)) {
-          write.csv(results$zip$lang_summary, file, row.names = FALSE)
+        r <- results$analyze
+        if (!is.null(r) && !is.null(r$lang_summary)) {
+          write.csv(r$lang_summary, file, row.names = FALSE)
         } else {
-          showNotification("No data to export", type = "warning")
+          showNotification("No language data to export. Run a Local Folder or ZIP analysis first.", type = "warning")
+          write.csv(data.frame(), file, row.names = FALSE)
         }
       }
     )
@@ -103,12 +107,7 @@ exportServer <- function(id, results, session_data) {
         paste0("cost_estimate_", format(Sys.Date(), "%Y%m%d"), ".json")
       },
       content = function(file) {
-        export_data <- list(
-          local = results$local,
-          zip = results$zip,
-          manual = results$manual
-        )
-        jsonlite::write_json(export_data, file, pretty = TRUE)
+        jsonlite::write_json(results$analyze, file, pretty = TRUE)
       }
     )
   })
