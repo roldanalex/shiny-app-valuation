@@ -1,0 +1,49 @@
+# Tests for analyze_repo_code(): Billable classification and the guarantee
+# that docs/config lines do not move the cost estimate.
+
+local({
+  root <- if (dir.exists("R")) "." else file.path("..", "..")
+  source(file.path(root, "R", "repo_code_analyzer.R"), local = FALSE)
+})
+
+make_fixture <- function() {
+  dir <- file.path(tempdir(), paste0("fixture_", sample.int(1e6, 1)))
+  dir.create(dir)
+  writeLines(c("f <- function(x) {", "  x + 1", "}", rep("y <- 1", 200)),
+             file.path(dir, "code.R"))
+  writeLines(rep("print('hello')", 100), file.path(dir, "script.py"))
+  writeLines(rep("Some documentation text.", 500), file.path(dir, "README.md"))
+  writeLines(c("{", paste0('  "k', 1:300, '": 1,'), "}"),
+             file.path(dir, "config.json"))
+  dir
+}
+
+test_that("analyzer flags docs/config as non-billable", {
+  dir <- make_fixture()
+  on.exit(unlink(dir, recursive = TRUE))
+  res <- capture.output(summary <- analyze_repo_code(dir))
+  expect_true("Billable" %in% names(summary))
+  expect_true(summary$Billable[summary$Language == "R"])
+  expect_true(summary$Billable[summary$Language == "Python"])
+  expect_false(summary$Billable[summary$Language == "Markdown"])
+  expect_false(summary$Billable[summary$Language == "JSON"])
+})
+
+test_that("docs/config lines do not change the cost estimate", {
+  dir_code <- file.path(tempdir(), paste0("code_only_", sample.int(1e6, 1)))
+  dir.create(dir_code)
+  on.exit(unlink(dir_code, recursive = TRUE), add = TRUE)
+  writeLines(rep("y <- 1", 1000), file.path(dir_code, "code.R"))
+
+  dir_both <- file.path(tempdir(), paste0("code_docs_", sample.int(1e6, 1)))
+  dir.create(dir_both)
+  on.exit(unlink(dir_both, recursive = TRUE), add = TRUE)
+  writeLines(rep("y <- 1", 1000), file.path(dir_both, "code.R"))
+  writeLines(rep("Docs docs docs.", 5000), file.path(dir_both, "README.md"))
+
+  out_code <- capture.output(analyze_repo_code(dir_code))
+  out_both <- capture.output(analyze_repo_code(dir_both))
+
+  cost_line <- function(out) grep("Estimated Cost to Develop", out, value = TRUE)
+  expect_equal(cost_line(out_code), cost_line(out_both))
+})

@@ -1,0 +1,226 @@
+/* Shiny Cost Estimator - light professional theme.
+   All colors reference the --app-* custom properties injected from
+   modules/theme.R (css_root_vars). Do not hardcode hex values here. */
+
+/* ---- Summary strip ---- */
+.summary-strip {
+  position: sticky;
+  bottom: 0;
+  z-index: 100;
+  background: var(--app-surface);
+  border-top: 1px solid var(--app-border);
+  box-shadow: 0 -2px 8px rgba(31, 41, 55, 0.06);
+  padding: 8px 20px;
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+.summary-strip .strip-item { color: var(--app-ink); }
+.summary-strip .strip-label { color: var(--app-ink-muted); margin-right: 4px; }
+.summary-strip .strip-value {
+  color: var(--app-primary);
+  font-weight: 600;
+  font-feature-settings: "tnum";
+}
+.summary-strip .strip-warning { color: var(--app-warning); font-weight: 600; }
+
+/* ---- Estimate range track (honest low / estimate / high indicator) ---- */
+.range-track-container { margin-top: 10px; }
+.range-track {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--app-border);
+}
+.range-track .range-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  background: var(--app-primary);
+  opacity: 0.35;
+}
+.range-track .range-tick {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 12px;
+  background: var(--app-primary);
+}
+.range-track .range-tick.tick-low  { left: 0; }
+.range-track .range-tick.tick-mid  { left: 50%; transform: translateX(-50%); }
+.range-track .range-tick.tick-high { right: 0; }
+.range-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--app-ink-muted);
+  margin-top: 6px;
+  font-feature-settings: "tnum";
+}
+.range-labels .range-mid-label { color: var(--app-ink); font-weight: 600; }
+
+/* ---- Sidebar section labels ---- */
+.sidebar-section-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--app-ink-muted);
+  margin: 12px 0 4px;
+}
+
+/* ---- Card accents ---- */
+.result-card { border-left: 3px solid var(--app-primary) !important; }
+.warning-card { border-left: 3px solid var(--app-warning) !important; }
+
+/* ---- KPI cards (unified, calm) ---- */
+.kpi-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 0.6rem;
+  padding: 14px 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.kpi-card .kpi-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--app-ink-muted);
+  margin-bottom: 4px;
+}
+.kpi-card .kpi-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--app-ink);
+  font-feature-settings: "tnum";
+  animation: countup 0.4s ease-out;
+}
+.kpi-card .kpi-note { font-size: 0.75rem; color: var(--app-ink-muted); margin-top: 2px; }
+.kpi-card.kpi-warning { border-left: 3px solid var(--app-warning); }
+.kpi-card.kpi-warning .kpi-note { color: var(--app-warning); font-weight: 600; }
+
+/* ---- Hero cost card ---- */
+.hero-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-top: 4px solid var(--app-primary);
+  border-radius: 0.6rem;
+  padding: 22px 24px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.hero-card .hero-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--app-ink-muted);
+}
+.hero-card .hero-value {
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--app-primary);
+  line-height: 1.15;
+  font-feature-settings: "tnum";
+  animation: countup 0.4s ease-out;
+}
+
+/* ---- Value box number animation ---- */
+@keyframes countup { from { opacity: 0.3; } to { opacity: 1; } }
+.value-box .value { animation: countup 0.4s ease-out; }
+
+/* ---- EM total badge ---- */
+.em-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+.em-neutral {
+  background: var(--app-bg);
+  color: var(--app-ink-muted);
+  border: 1px solid var(--app-border);
+}
+.em-green {
+  background: rgba(31, 157, 102, 0.12);
+  color: var(--app-positive);
+  border: 1px solid rgba(31, 157, 102, 0.35);
+}
+.em-red {
+  background: rgba(196, 85, 59, 0.12);
+  color: var(--app-negative);
+  border: 1px solid rgba(196, 85, 59, 0.35);
+}
+
+/* ---- Input method radio buttons ---- */
+.input-method-bar {
+  padding: 10px 16px 6px;
+  border-bottom: 1px solid var(--app-border);
+  margin-bottom: 4px;
+}
+.input-method-bar .radio-inline { font-size: 0.9rem; }
+
+/* ---- Demo card on Home ---- */
+.demo-card-stat { text-align: center; padding: 12px 8px; }
+.demo-card-stat .stat-val {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--app-primary);
+  font-feature-settings: "tnum";
+}
+.demo-card-stat .stat-lbl {
+  font-size: 0.8rem;
+  color: var(--app-ink-muted);
+  margin-top: 2px;
+}
+
+/* ---- Sidebar ---- */
+.bslib-sidebar-layout > .sidebar { min-width: 280px; }
+
+/* ---- Modal markdown content (How to Use / User Guide) ---- */
+.modal-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0 1rem;
+}
+.modal-body th,
+.modal-body td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--app-border);
+  text-align: left;
+  vertical-align: top;
+}
+.modal-body th {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--app-ink-muted);
+}
+.modal-body blockquote {
+  border-left: 3px solid var(--app-primary);
+  background: var(--app-bg);
+  padding: 8px 14px;
+  margin: 0.75rem 0;
+  border-radius: 0 0.4rem 0.4rem 0;
+}
+.modal-body h1 { font-size: 1.35rem; margin-top: 1rem; }
+.modal-body h2 { font-size: 1.15rem; margin-top: 1.25rem; }
+.modal-body h3 { font-size: 1rem; margin-top: 1rem; }
+
+/* ---- Footer ---- */
+.app-footer {
+  background: var(--app-surface);
+  border-top: 1px solid var(--app-border);
+  color: var(--app-ink-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
