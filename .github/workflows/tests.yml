@@ -1,0 +1,37 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  testthat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::shiny
+            any::bslib
+            any::plotly
+            any::DT
+            any::markdown
+            any::jsonlite
+            any::ggplot2
+            any::ragg
+            any::knitr
+            any::quarto
+            any::testthat
+
+      - name: Run tests
+        run: Rscript tests/testthat.R

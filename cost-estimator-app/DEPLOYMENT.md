@@ -417,8 +417,7 @@ Large (>50MB):
 - Stack Overflow: `[shiny]` tag
 
 **App Issues:**
-- GitHub Issues
-- Email: alexis.m.roldan.ds@gmail.com
+- GitHub Issues: https://github.com/roldanalex/shiny-app-valuation/issues
 
 ---
 

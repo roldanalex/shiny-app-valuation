@@ -1,14 +1,15 @@
 # Shiny App Valuation Toolkit
 
+[![tests](https://github.com/roldanalex/shiny-app-valuation/actions/workflows/tests.yml/badge.svg)](https://github.com/roldanalex/shiny-app-valuation/actions/workflows/tests.yml)
+
 **v2.0.0** · COCOMO II-based cost estimation for R Shiny and data science projects. Estimates development effort, schedule, team size, budget, maintenance costs, and Total Cost of Ownership (TCO) from code line counts and project parameters.
 
 ## Overview
 
-Three interfaces, one estimation engine:
+Two interfaces, one estimation engine:
 
 - **Shiny Web App** - Interactive dashboard with visualizations, branded PDF reports, scenario comparison, and export
 - **R CLI** - `analyze_repo_code()` scans a repository and prints an scc-style report with cost estimate
-- **Python CLI** - `repo_code_analyzer.py` with `analyze` and `estimate` subcommands, plus CSV/HTML/TXT export. *Note: the Python port still implements the v1.x model and has not yet been updated to the v2.0 calibration (COCOMO II.2000 constants, smooth compression premium, single wage rate) — its numbers will differ from the app until it is ported.*
 
 ## Quick Start
 
@@ -29,19 +30,6 @@ source("R/repo_code_analyzer.R")
 analyze_repo_code(".", avg_wage = 105000, complexity = "medium", team_experience = 4)
 ```
 
-### Python Command Line
-
-```bash
-# Analyze a repository
-python3 Python/repo_code_analyzer.py analyze . --avg-wage 105000 --complexity medium
-
-# Direct estimate from line count
-python3 Python/repo_code_analyzer.py estimate --lines 10000 --complexity medium --team-exp 4
-
-# With maintenance projection
-python3 Python/repo_code_analyzer.py estimate --lines 10000 --maintenance-years 3
-```
-
 ## Architecture
 
 ### High-Level System Architecture
@@ -51,7 +39,6 @@ graph TB
     subgraph Interfaces
         APP["Shiny Web App<br/><i>cost-estimator-app/app.R</i>"]
         RCLI["R CLI<br/><i>R/repo_code_analyzer.R</i>"]
-        PYCLI["Python CLI<br/><i>Python/repo_code_analyzer.py</i>"]
     end
 
     subgraph Core["Core Estimation Engine"]
@@ -69,7 +56,6 @@ graph TB
     APP --> EST
     RCLI --> SCAN
     SCAN --> EST
-    PYCLI -.->|"Python reimplementation"| EST
 
     EST --> FORMULA
     EST --> SCHED
@@ -244,8 +230,6 @@ shiny-app-valuation/
 ├── R/
 │   ├── shiny_cost_estimator.R       # Core COCOMO II estimation engine
 │   └── repo_code_analyzer.R         # Repository scanner + estimator
-├── Python/
-│   └── repo_code_analyzer.py        # Python CLI (v1.x model - pending v2.0 port)
 ├── cost-estimator-app/
 │   ├── app.R                        # Main Shiny app
 │   ├── run_app.R                    # Launcher script
