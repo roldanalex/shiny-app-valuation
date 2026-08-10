@@ -7,34 +7,46 @@ comparisonUI <- function(id) {
 
   scenario_card <- function(n, complexity, team, reuse, tools) {
     card(
+      fill = FALSE,
       card_header(paste("Scenario", n)),
-      numericInput(ns(paste0("lines_", n)), "Code Lines:", value = 10000, min = 100),
-      selectInput(ns(paste0("complexity_", n)), "Complexity:",
-                 choices = c("Low" = "low", "Medium" = "medium", "High" = "high"),
-                 selected = complexity),
-      sliderInput(ns(paste0("team_", n)), "Team Exp:", min = 1, max = 5, value = team),
-      sliderInput(ns(paste0("reuse_", n)), "Reuse:", min = 0.7, max = 1.3, value = reuse, step = 0.1),
-      sliderInput(ns(paste0("tools_", n)), "Tool Support:", min = 0.8, max = 1.2, value = tools, step = 0.1),
-      actionButton(ns(paste0("calc_", n)), "Calculate", class = "btn-primary w-100")
+      card_body(
+        fillable = FALSE,
+        numericInput(ns(paste0("lines_", n)), "Code Lines:", value = 10000, min = 100),
+        selectInput(ns(paste0("complexity_", n)), "Complexity:",
+                   choices = c("Low" = "low", "Medium" = "medium", "High" = "high"),
+                   selected = complexity),
+        sliderInput(ns(paste0("team_", n)), "Team Exp:", min = 1, max = 5, value = team),
+        sliderInput(ns(paste0("reuse_", n)), "Reuse:", min = 0.7, max = 1.3, value = reuse, step = 0.1),
+        sliderInput(ns(paste0("tools_", n)), "Tool Support:", min = 0.8, max = 1.2, value = tools, step = 0.1),
+        actionButton(ns(paste0("calc_", n)), "Calculate", class = "btn-primary w-100")
+      )
     )
   }
 
   card(
     card_header("Compare Multiple Scenarios"),
     card_body(
+      fillable = FALSE,
       p("Create and compare up to 3 different cost estimation scenarios side-by-side."),
 
       # Shared cost parameters - applied to every scenario
       card(
         class = "result-card mb-3",
+        fill = FALSE,
         card_header("Shared Cost Parameters"),
         card_body(
-          layout_column_wrap(
-            width = 1/2,
-            numericInput(ns("wage"), "Average Annual Wage ($):",
-                        value = 105000, min = 50000, max = 300000, step = 5000),
-            sliderInput(ns("max_schedule"), "Max Schedule (months):",
-                       min = 3, max = 36, value = 24, step = 3)
+          fillable = FALSE,
+          fluidRow(
+            column(
+              6,
+              numericInput(ns("wage"), "Average Annual Wage ($):",
+                          value = 105000, min = 50000, max = 300000, step = 5000)
+            ),
+            column(
+              6,
+              sliderInput(ns("max_schedule"), "Max Schedule (months):",
+                         min = 3, max = 36, value = 24, step = 3)
+            )
           ),
           tags$small(class = "text-muted",
             "These apply to all scenarios so costs stay comparable.")
@@ -100,7 +112,21 @@ comparisonServer <- function(id) {
 
     output$comparison_chart <- renderPlotly({
       s <- get_scenarios()
-      if (length(s) == 0) return(NULL)
+      if (length(s) == 0) {
+        return(
+          plotly_empty(type = "scatter", mode = "markers") %>%
+            layout(
+              paper_bgcolor = app_plotly_layout$paper_bgcolor,
+              plot_bgcolor  = app_plotly_layout$plot_bgcolor,
+              font          = app_plotly_layout$font,
+              annotations = list(list(
+                text = "Click Calculate on a scenario to see the comparison.",
+                showarrow = FALSE, xref = "paper", yref = "paper",
+                x = 0.5, y = 0.5, font = list(color = app_colors$ink_muted)
+              ))
+            )
+        )
+      }
 
       scenario_names <- names(s)
       costs      <- sapply(s, function(e) e$cost_usd)
@@ -150,7 +176,12 @@ comparisonServer <- function(id) {
 
     output$comparison_table <- renderDT({
       s <- get_scenarios()
-      if (length(s) == 0) return(NULL)
+      if (length(s) == 0) {
+        return(datatable(
+          data.frame(Info = "Click Calculate on a scenario to populate this table."),
+          options = list(dom = "t"), rownames = FALSE, colnames = ""
+        ))
+      }
 
       comp_df <- data.frame()
       for (nm in names(s)) {
